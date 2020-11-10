@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wedding
+spec:
+  selector:
+    app: wedding
+  ports:
+    - name: wedding
+      port: 2376
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wedding
+  labels:
+    app: wedding
+spec:
+  selector:
+    matchLabels:
+      app: wedding
+  template:
+    metadata:
+      labels:
+        app: wedding
+    spec:
+      serviceAccountName: wedding
+      containers:
+        - name: wedding
+          image: wedding-image
+          args:
+            - --s3-endpoint=minio:9000
+            - --s3-access-key-file=/secret/minio/MINIO_ACCESS_KEY
+            - --s3-secret-key-file=/secret/minio/MINIO_SECRET_KEY
+            - --s3-ssl=false
+            - --s3-bucket=wedding
+          ports:
+            - name: wedding
+              containerPort: 2376
+          readinessProbe:
+            httpGet:
+              path: /_ping
+              port: 2376
+          volumeMounts:
+            - name: minio
+              mountPath: "/secret/minio"
+              readOnly: true
+      volumes:
+        - name: minio
+          secret:
+            secretName: minio
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+ name: wedding
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wedding
+subjects:
+- kind: ServiceAccount
+  name: wedding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+# TODO create a custom set of permissions and avoid namespace admin role
+#roleRef:
+#  kind: Role
+#  name: wedding
+#  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wedding
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

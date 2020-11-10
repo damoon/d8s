@@ -1,0 +1,14 @@
+disable_snapshots()
+allow_k8s_contexts(['test', 'ci'])
+
+load('ext://min_tilt_version', 'min_tilt_version')
+min_tilt_version('0.15.0') # includes fix for auto_init+False with tilt ci
+
+k8s_yaml('kubernetes.yaml')
+
+docker_build('use-case-3-image', '.')
+
+k8s_resource(
+  'use-case-3',
+  port_forwards=['8080:80'],
+)
