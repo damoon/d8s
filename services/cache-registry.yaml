@@ -1,42 +1,36 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: minio
+  name: cache-registry
 spec:
   ports:
-    - name: minio
-      port: 9000
+    - name: http
+      port: 5000
   selector:
-    app: minio
+    app: cache-registry
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: minio
+  name: cache-registry
 spec:
   selector:
     matchLabels:
-        app: minio
+        app: cache-registry
   strategy:
     type: Recreate
   replicas: 1
   template:
     metadata:
       labels:
-        app: minio
+        app: cache-registry
     spec:
       containers:
-        - name: minio
-          image: minio/minio:RELEASE.2020-05-16T01-33-21Z
-          args:
-            - server
-            - /home/shared
-          envFrom:
-            - secretRef:
-                name: minio
+        - name: cache-registry
+          image: registry:2.7.1
           ports:
             - name: http
-              containerPort: 9000
+              containerPort: 5000
           resources:
             limits:
               cpu: "100m"
@@ -46,8 +40,8 @@ spec:
               memory: "500Mi"
           readinessProbe:
             httpGet:
-              path: /minio/health/live
-              port: 9000
+              path: /v2/
+              port: 5000
           lifecycle:
             preStop:
               exec:
@@ -57,28 +51,19 @@ spec:
                   - "sleep 10"
           volumeMounts:
             - name: data
-              mountPath: /home/shared
+              mountPath: /var/lib/registry
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: minio
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: minio
-type: Opaque
-data:
-  MINIO_ACCESS_KEY: bWluaW8xMjM= # minio123
-  MINIO_SECRET_KEY: bWluaW80NTY= # minio456
+            claimName: cache-registry
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: minio
+  name: cache-registry
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 3Gi
+      storage: 10Gi

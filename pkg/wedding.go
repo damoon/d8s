@@ -41,7 +41,7 @@ func (s *Service) routes() {
 	s.router.HandleFunc("/v"+apiVersion+"/containers/prune", containersPrune)
 	s.router.HandleFunc("/v"+apiVersion+"/build/prune", buildPrune)
 	s.router.HandleFunc("/v"+apiVersion+"/version", version)
-	s.router.HandleFunc("/v"+apiVersion+"/build", logReqResp(s.buildHandler()))
+	s.router.HandleFunc("/v"+apiVersion+"/build", s.buildHandler())
 	s.router.HandleFunc("/_ping", ping)
 	s.router.HandleFunc("/", logReqResp(unsupported))
 }
