@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -16,14 +15,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 
-	apiv1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	helpText = `
-wedding only supports these arguments: context, tag, buildargs, cachefrom, cpuperiod, cpuquota, dockerfile, memory, labels, and target
+wedding builds only support these arguments: context, tag, buildargs, cachefrom, cpuperiod, cpuquota, dockerfile, memory, labels, and target
 %s`
 )
 
@@ -48,24 +46,19 @@ type ObjectStore struct {
 }
 
 func (s Service) buildHandler() http.HandlerFunc {
-	return func(res http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-		// res.Write([]byte(`{"aux":{"ID":"sha256:d8f38feb768dd84819b607224c07f2453412e1808b4b4e52894048073e50732d"}}`))
-
-		//return
-
-		ctx := req.Context()
-
-		cfg, err := buildParameters(req)
+		cfg, err := buildParameters(r)
 		if err != nil {
-			printBuildHelpText(res, err)
+			printBuildHelpText(w, err)
 			return
 		}
 
-		err = s.objectStore.storeContext(ctx, req, cfg)
+		err = s.objectStore.storeContext(ctx, r, cfg)
 		if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(fmt.Sprintf("store context: %v", err)))
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("store context: %v", err)))
 			log.Printf("execute build: %v", err)
 			return
 		}
@@ -73,17 +66,19 @@ func (s Service) buildHandler() http.HandlerFunc {
 			s.objectStore.deleteContext(ctx, cfg)
 		}()
 
-		err = s.executeBuild(ctx, cfg, res)
+		err = s.executeBuild(ctx, cfg, w)
 		if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(fmt.Sprintf("execute build: %v", err)))
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("execute build: %v", err)))
 			log.Printf("execute build: %v", err)
 			return
 		}
+
+		w.Write([]byte(`{"aux":{"ID":"sha256:d8f38feb768dd84819b607224c07f2453412e1808b4b4e52894048073e50732d"}}`))
 	}
 }
 
-func buildParameters(req *http.Request) (*buildConfig, error) {
+func buildParameters(r *http.Request) (*buildConfig, error) {
 	cfg := &buildConfig{}
 
 	asserts := map[string]string{
@@ -108,39 +103,39 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 	}
 
 	for k, v := range asserts {
-		if req.URL.Query().Get(k) != v {
-			return cfg, fmt.Errorf("unsupported argument %s set to '%s'", k, req.URL.Query().Get(k))
+		if r.URL.Query().Get(k) != v {
+			return cfg, fmt.Errorf("unsupported argument %s set to '%s'", k, r.URL.Query().Get(k))
 		}
 	}
 
-	networkmode := req.URL.Query().Get("networkmode")
+	networkmode := r.URL.Query().Get("networkmode")
 	if networkmode != "default" && networkmode != "" { // docker uses "default", tilt uses ""
 		return cfg, fmt.Errorf("unsupported argument networkmode set to '%s'", networkmode)
 	}
 
-	version := req.URL.Query().Get("version")
+	version := r.URL.Query().Get("version")
 	if version != "1" && version != "2" { // docker uses "1", tilt uses "2"
 		return cfg, fmt.Errorf("unsupported argument version set to '%s'", version)
 	}
 
-	rm := req.URL.Query().Get("rm")
+	rm := r.URL.Query().Get("rm")
 	if rm != "1" && rm != "0" { // docker uses "1", tilt uses 02"
 		return cfg, fmt.Errorf("unsupported argument rm set to '%s'", rm)
 	}
 
-	err := json.Unmarshal([]byte(req.URL.Query().Get("buildargs")), &cfg.buildArgs)
+	err := json.Unmarshal([]byte(r.URL.Query().Get("buildargs")), &cfg.buildArgs)
 	if err != nil {
 		return cfg, fmt.Errorf("decode buildargs: %v", err)
 	}
 
-	err = json.Unmarshal([]byte(req.URL.Query().Get("labels")), &cfg.labels)
+	err = json.Unmarshal([]byte(r.URL.Query().Get("labels")), &cfg.labels)
 	if err != nil {
 		return cfg, fmt.Errorf("decode labels: %v", err)
 	}
 
 	// cache repo
 	cachefrom := []string{}
-	err = json.Unmarshal([]byte(req.URL.Query().Get("cachefrom")), &cachefrom)
+	err = json.Unmarshal([]byte(r.URL.Query().Get("cachefrom")), &cachefrom)
 	if err != nil {
 		return cfg, fmt.Errorf("decode cachefrom: %v", err)
 	}
@@ -155,7 +150,7 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 	// TODO set default cache from tag
 
 	// cpu limit
-	cpuperiod, err := strconv.Atoi(req.URL.Query().Get("cpuperiod"))
+	cpuperiod, err := strconv.Atoi(r.URL.Query().Get("cpuperiod"))
 	if err != nil {
 		return cfg, fmt.Errorf("parse cpu period to int: %v", err)
 	}
@@ -163,7 +158,7 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 		cpuperiod = 100_000 // results in 1 cpu
 	}
 
-	cpuquota, err := strconv.Atoi(req.URL.Query().Get("cpuquota"))
+	cpuquota, err := strconv.Atoi(r.URL.Query().Get("cpuquota"))
 	if err != nil {
 		return cfg, fmt.Errorf("parse cpu quota to int: %v", err)
 	}
@@ -174,13 +169,13 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 	cfg.cpuMilliseconds = int(1000 * float64(cpuquota) / float64(cpuperiod))
 
 	// Dockerfile
-	cfg.dockerfile = req.URL.Query().Get("dockerfile")
+	cfg.dockerfile = r.URL.Query().Get("dockerfile")
 	if cfg.dockerfile == "" {
 		cfg.dockerfile = "Dockerfile"
 	}
 
 	// memory limit
-	memoryArg := req.URL.Query().Get("memory")
+	memoryArg := r.URL.Query().Get("memory")
 	if memoryArg == "" {
 		memoryArg = "2147483648" // 2Gi default
 	}
@@ -191,10 +186,10 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 	cfg.memoryBytes = memory
 
 	// target
-	cfg.target = req.URL.Query().Get("target")
+	cfg.target = r.URL.Query().Get("target")
 
 	// image tag
-	tags := req.URL.Query()["t"]
+	tags := r.URL.Query()["t"]
 	if len(tags) > 1 {
 		return cfg, fmt.Errorf("wedding does not support setting multiple image tags at a time")
 	}
@@ -206,11 +201,11 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 	}
 
 	// disable cache
-	nocache := req.URL.Query().Get("nocache")
+	nocache := r.URL.Query().Get("nocache")
 	cfg.noCache = nocache == "1"
 
 	// registry authentitation
-	registryCfg, err := base64.StdEncoding.DecodeString(req.Header.Get("X-Registry-Config"))
+	registryCfg, err := base64.StdEncoding.DecodeString(r.Header.Get("X-Registry-Config"))
 	if err != nil {
 		return cfg, fmt.Errorf("decode registry authentication config: %v", err)
 	}
@@ -219,21 +214,21 @@ func buildParameters(req *http.Request) (*buildConfig, error) {
 	return cfg, nil
 }
 
-func printBuildHelpText(res http.ResponseWriter, err error) {
+func printBuildHelpText(w http.ResponseWriter, err error) {
 	txt := fmt.Sprintf(helpText, err)
 
-	res.WriteHeader(http.StatusBadRequest)
+	w.WriteHeader(http.StatusBadRequest)
 
-	_, err = res.Write([]byte(txt))
+	_, err = w.Write([]byte(txt))
 	if err != nil {
 		log.Printf("print help text: %v", err)
 	}
 }
 
-func (o ObjectStore) storeContext(ctx context.Context, req *http.Request, cfg *buildConfig) error {
+func (o ObjectStore) storeContext(ctx context.Context, r *http.Request, cfg *buildConfig) error {
 
 	// BUG: possible OOM: loading all context into memory
-	b, err := ioutil.ReadAll(req.Body)
+	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return fmt.Errorf("read context: %v", err)
 	}
@@ -265,12 +260,12 @@ func (o ObjectStore) storeContext(ctx context.Context, req *http.Request, cfg *b
 
 func (o ObjectStore) presignContext(cfg *buildConfig) (string, error) {
 
-	req, _ := o.Client.GetObjectRequest(&s3.GetObjectInput{
+	objectRequest, _ := o.Client.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: aws.String(o.Bucket),
 		Key:    aws.String(cfg.contextFilePath),
 	})
 
-	url, err := req.Presign(time.Hour)
+	url, err := objectRequest.Presign(time.Hour)
 	if err != nil {
 		return "", fmt.Errorf("presign GET %s: %v", cfg.contextFilePath, err)
 	}
@@ -290,7 +285,7 @@ func (o ObjectStore) deleteContext(ctx context.Context, cfg *buildConfig) error 
 	return nil
 }
 
-func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, res http.ResponseWriter) error {
+func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.ResponseWriter) error {
 
 	presignedContextURL, err := s.objectStore.presignContext(cfg)
 	if err != nil {
@@ -326,16 +321,16 @@ buildctl-daemonless.sh \
  --import-cache=type=registry,ref=cache-registry:5000/cache-repo
 `, presignedContextURL)
 
-	pod := &apiv1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "wedding-build-",
 		},
-		Spec: apiv1.PodSpec{
-			Containers: []apiv1.Container{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
 				{
 					Name:            "buildkit",
 					Image:           "moby/buildkit:master-rootless",
-					ImagePullPolicy: apiv1.PullAlways,
+					ImagePullPolicy: corev1.PullAlways,
 					// Image: "moby/buildkit:v0.8-beta",
 					// Image: "moby/buildkit:v0.7.2-rootless",
 					Command: []string{
@@ -346,132 +341,14 @@ buildctl-daemonless.sh \
 					},
 				},
 			},
-			RestartPolicy: apiv1.RestartPolicyNever,
+			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
 
-	err = s.executePod(ctx, pod, res)
+	err = s.executePod(ctx, pod, w)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (s Service) executePod(ctx context.Context, pod *apiv1.Pod, res http.ResponseWriter) error {
-	podClient := s.kubernetesClient.CoreV1().Pods(s.namespace)
-
-	stream(res, "Creating new pod.\n")
-
-	pod, err := podClient.Create(ctx, pod, v1.CreateOptions{})
-	if err != nil {
-		streamf(res, "Pod creation failed: %v\n", err)
-		return fmt.Errorf("create pod: %v", err)
-	}
-
-	streamf(res, "Created pod %v.\n", pod.Name)
-
-	failed := false
-
-	defer func() {
-		if failed {
-			stream(res, "Pod failed. Skipping cleanup.\n")
-			return
-		}
-
-		stream(res, "Deleting pod.\n")
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		err = podClient.Delete(ctx, pod.Name, v1.DeleteOptions{})
-		if err != nil {
-			streamf(res, "Pod deletetion failed: %v\n", err)
-			log.Printf("delete pod: %v", err)
-		}
-	}()
-
-	stream(res, "Waiting for pod execution.\n")
-
-waitRunning:
-	pod, err = s.kubernetesClient.CoreV1().Pods(s.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
-
-	if err != nil {
-		streamf(res, "Looking up pod: %v.\n", err)
-		return fmt.Errorf("look up pod: %v", err)
-	}
-
-	switch pod.Status.Phase {
-	case "Failed":
-		failed = true
-		fallthrough
-	case "Succeeded":
-		fallthrough
-	case "Running":
-		goto printLogs
-	default:
-		time.Sleep(time.Second)
-		goto waitRunning
-	}
-
-printLogs:
-	stream(res, "Streaming logs.\n")
-
-	podLogs, err := s.kubernetesClient.CoreV1().Pods(s.namespace).
-		GetLogs(pod.Name, &apiv1.PodLogOptions{Follow: true}).
-		Stream(ctx)
-	if err != nil {
-		streamf(res, "Log streaming failed: %v\n", err)
-		return fmt.Errorf("streaming logs: %v", err)
-	}
-	defer podLogs.Close()
-
-	buf := make([]byte, 1024)
-
-	for {
-		n, err := podLogs.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				stream(res, "End of logs reached.\n")
-				return nil
-			}
-
-			return fmt.Errorf("read logs: %v", err)
-		}
-
-		stream(res, string(buf[:n]))
-	}
-}
-
-func (s Service) podStatus(ctx context.Context, podName string) (apiv1.PodPhase, error) {
-	pod, err := s.kubernetesClient.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	return pod.Status.Phase, nil
-}
-
-func stream(res http.ResponseWriter, message string) error {
-	b, err := json.Marshal(message)
-	if err != nil {
-		panic(err) // encode a string to json should not fail
-	}
-
-	_, err = res.Write([]byte(fmt.Sprintf(`{"stream": %s}`, b)))
-	if err != nil {
-		return err
-	}
-
-	if f, ok := res.(http.Flusher); ok {
-		f.Flush()
-	} else {
-		return fmt.Errorf("stream can not be flushed")
-	}
-
-	return nil
-}
-
-func streamf(res http.ResponseWriter, message string, args ...interface{}) error {
-	return stream(res, fmt.Sprintf(message, args...))
 }

@@ -59,7 +59,15 @@ k8s_resource(
   resource_deps=['setup-s3-bucket'],
 )
 
+local_resource ('use case 1',
+  'DOCKER_HOST=tcp://127.0.0.1:12376 docker build ./use-case-1',
+  resource_deps=['wedding'] ,
+)
 
+local_resource ('use case 3',
+  'cd use-case-3 && DOCKER_HOST=tcp://127.0.0.1:12376 tilt ci --port 0',
+  resource_deps=['wedding'] ,
+)
 
 
 #k8s_yaml('e2e-tests/deployment/tests.yaml')
