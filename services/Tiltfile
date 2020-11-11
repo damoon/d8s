@@ -11,5 +11,5 @@ k8s_resource(
   resource_deps=['setup-s3-bucket'],
 )
 
-k8s_yaml('cache-registry.yaml')
-k8s_resource('cache-registry', port_forwards=5000)
+k8s_yaml('wedding-registry.yaml')
+k8s_resource('wedding-registry', port_forwards=5000)

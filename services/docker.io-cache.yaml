@@ -1,32 +1,32 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: cache-registry
+  name: docker.io-mirror
 spec:
   ports:
     - name: http
       port: 5000
   selector:
-    app: cache-registry
+    app: docker.io-mirror
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cache-registry
+  name: docker.io-mirror
 spec:
   selector:
     matchLabels:
-        app: cache-registry
+        app: docker.io-mirror
   strategy:
     type: Recreate
   replicas: 1
   template:
     metadata:
       labels:
-        app: cache-registry
+        app: docker.io-mirror
     spec:
       containers:
-        - name: cache-registry
+        - name: docker.io-mirror
           image: registry:2.7.1
           ports:
             - name: http
@@ -55,12 +55,12 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: cache-registry
+            claimName: docker.io-mirror
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: cache-registry
+  name: docker.io-mirror
 spec:
   accessModes:
     - ReadWriteOnce

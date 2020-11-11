@@ -59,25 +59,20 @@ k8s_resource(
   resource_deps=['setup-s3-bucket'],
 )
 
-local_resource ('use case 1',
+local_resource ('docker build',
   'DOCKER_HOST=tcp://127.0.0.1:12376 docker build ./use-case-1',
-  resource_deps=['wedding'] ,
+  resource_deps=['wedding'],
 )
 
-local_resource ('use case 3',
-  'cd use-case-3 && DOCKER_HOST=tcp://127.0.0.1:12376 tilt ci --port 0',
-  resource_deps=['wedding'] ,
+local_resource ('docker pull tag push',
+  'DOCKER_HOST=tcp://127.0.0.1:12376 docker pull alpine && \
+  DOCKER_HOST=tcp://127.0.0.1:12376 docker tag alpine wedding-registry:5000/alpine-retag && \
+  DOCKER_HOST=tcp://127.0.0.1:12376 docker push wedding-registry:5000/alpine-retag',
+  resource_deps=['wedding'],
 )
 
-
-#k8s_yaml('e2e-tests/deployment/tests.yaml')
-#docker_build(
-#  'e2e-tests-image',
-#  'e2e-tests',
-#  dockerfile='e2e-tests/deployment/Dockerfile',
-#)
-#k8s_resource(
-#  'e2e-tests',
-#  trigger_mode=TRIGGER_MODE_MANUAL,
-#  resource_deps=['backend', 'frontend'],
-#)
+local_resource ('tilt ci',
+  'cd use-case-3 && DOCKER_HOST=tcp://127.0.0.1:12376 tilt ci --port 0 && \
+  tilt down',
+  resource_deps=['wedding'],
+)

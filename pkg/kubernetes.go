@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w http.ResponseWriter) error {
+func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) error {
 	podClient := s.kubernetesClient.CoreV1().Pods(s.namespace)
 
 	stream(w, "Creating new pod.\n")
@@ -88,6 +88,9 @@ printLogs:
 		if err != nil {
 			if err == io.EOF {
 				stream(w, "End of logs reached.\n")
+				if failed {
+					return fmt.Errorf("pod failed")
+				}
 				return nil
 			}
 
@@ -107,7 +110,7 @@ func (s Service) podStatus(ctx context.Context, podName string) (corev1.PodPhase
 	return pod.Status.Phase, nil
 }
 
-func stream(w http.ResponseWriter, message string) error {
+func stream(w io.Writer, message string) error {
 	b, err := json.Marshal(message)
 	if err != nil {
 		panic(err) // encode a string to json should not fail
@@ -127,6 +130,6 @@ func stream(w http.ResponseWriter, message string) error {
 	return nil
 }
 
-func streamf(w http.ResponseWriter, message string, args ...interface{}) error {
+func streamf(w io.Writer, message string, args ...interface{}) error {
 	return stream(w, fmt.Sprintf(message, args...))
 }

@@ -2,7 +2,6 @@ package wedding
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -33,9 +32,9 @@ type buildConfig struct {
 	dockerfile      string
 	memoryBytes     int
 	target          string
-	tag             string
+	tags            []string
 	noCache         bool
-	registryAuth    string
+	registryAuth    dockerConfig
 	contextFilePath string
 }
 
@@ -45,37 +44,35 @@ type ObjectStore struct {
 	Bucket string
 }
 
-func (s Service) buildHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+func (s Service) build(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-		cfg, err := buildParameters(r)
-		if err != nil {
-			printBuildHelpText(w, err)
-			return
-		}
-
-		err = s.objectStore.storeContext(ctx, r, cfg)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprintf("store context: %v", err)))
-			log.Printf("execute build: %v", err)
-			return
-		}
-		defer func() {
-			s.objectStore.deleteContext(ctx, cfg)
-		}()
-
-		err = s.executeBuild(ctx, cfg, w)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprintf("execute build: %v", err)))
-			log.Printf("execute build: %v", err)
-			return
-		}
-
-		w.Write([]byte(`{"aux":{"ID":"sha256:d8f38feb768dd84819b607224c07f2453412e1808b4b4e52894048073e50732d"}}`))
+	cfg, err := buildParameters(r)
+	if err != nil {
+		printBuildHelpText(w, err)
+		return
 	}
+
+	err = s.objectStore.storeContext(ctx, r, cfg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
+		log.Printf("execute build: %v", err)
+		return
+	}
+	defer func() {
+		s.objectStore.deleteContext(ctx, cfg)
+	}()
+
+	err = s.executeBuild(ctx, cfg, w)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("execute build: %v", err)))
+		log.Printf("execute build: %v", err)
+		return
+	}
+
+	w.Write([]byte(`{"aux":{"ID":"sha256:42341736246f8e99122d49e4c0e414f0a3e5f69a024e72a2ac1a39a2093d483f"}}`))
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
@@ -189,27 +186,20 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 	cfg.target = r.URL.Query().Get("target")
 
 	// image tag
-	tags := r.URL.Query()["t"]
-	if len(tags) > 1 {
-		return cfg, fmt.Errorf("wedding does not support setting multiple image tags at a time")
-	}
-	//	if len(tags) != 1 {
-	//		return cfg, fmt.Errorf("image tag not set")
-	//	}
-	if len(tags) == 1 {
-		cfg.tag = tags[0]
-	}
+	cfg.tags = r.URL.Query()["t"]
 
 	// disable cache
 	nocache := r.URL.Query().Get("nocache")
 	cfg.noCache = nocache == "1"
 
 	// registry authentitation
-	registryCfg, err := base64.StdEncoding.DecodeString(r.Header.Get("X-Registry-Config"))
+	log.Printf("X-Registry-Config: %v", r.Header.Get("X-Registry-Config"))
+	dockerCfg, err := xRegistryConfig(r.Header.Get("X-Registry-Config")).toDockerConfig()
 	if err != nil {
-		return cfg, fmt.Errorf("decode registry authentication config: %v", err)
+		return cfg, fmt.Errorf("extract registry config: %v", err)
 	}
-	cfg.registryAuth = string(registryCfg)
+
+	cfg.registryAuth = dockerCfg
 
 	return cfg, nil
 }
@@ -287,9 +277,51 @@ func (o ObjectStore) deleteContext(ctx context.Context, cfg *buildConfig) error 
 
 func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.ResponseWriter) error {
 
+	stream(w, fmt.Sprintf("%v", cfg))
+
 	presignedContextURL, err := s.objectStore.presignContext(cfg)
 	if err != nil {
 		return err
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "wedding-docker-config-",
+		},
+		StringData: map[string]string{
+			"config.json": cfg.registryAuth.mustToJSON(),
+		},
+	}
+
+	secretClient := s.kubernetesClient.CoreV1().Secrets(s.namespace)
+
+	secret, err = secretClient.Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		streamf(w, "Secret creation failed: %v\n", err)
+		return fmt.Errorf("create secret: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err = secretClient.Delete(ctx, secret.Name, metav1.DeleteOptions{})
+		if err != nil {
+			streamf(w, "Secret deletetion failed: %v\n", err)
+			log.Printf("delete secret: %v", err)
+		}
+	}()
+
+	imageNames := ""
+	for idx, tag := range cfg.tags {
+		if idx != 0 {
+			imageNames += ","
+		}
+		imageNames += fmt.Sprintf("wedding-registry:5000/images/%s", tag)
+	}
+
+	output := "--output type=image,push=true,name=wedding-registry:5000/digests"
+	if imageNames != "" {
+		output = fmt.Sprintf("--output type=image,push=true,name=\"%s\"", imageNames)
 	}
 
 	// TODO add timeout for script
@@ -300,7 +332,7 @@ mkdir ~/context && cd ~/context
 
 mkdir -p ~/.config/buildkit/
 echo "
-[registry.\"cache-registry:5000\"]
+[registry.\"wedding-registry:5000\"]
 http = true
 insecure = true
 " > ~/.config/buildkit/buildkitd.toml
@@ -316,10 +348,12 @@ buildctl-daemonless.sh \
  --local context=. \
  --local dockerfile=. \
  --opt filename=Dockerfile \
- --output type=image,push=true,name=cache-registry:5000/cache-repo:latest \
- --export-cache=type=registry,ref=cache-registry:5000/cache-repo,mode=max \
- --import-cache=type=registry,ref=cache-registry:5000/cache-repo
-`, presignedContextURL)
+ %s \
+ --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
+ --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
+`, presignedContextURL, output)
+
+	stream(w, buildScript)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -328,16 +362,28 @@ buildctl-daemonless.sh \
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:            "buildkit",
-					Image:           "moby/buildkit:master-rootless",
-					ImagePullPolicy: corev1.PullAlways,
-					// Image: "moby/buildkit:v0.8-beta",
-					// Image: "moby/buildkit:v0.7.2-rootless",
+					Name:  "buildkit",
+					Image: "moby/buildkit:v0.7.2-rootless",
 					Command: []string{
 						"sh",
 						"-c",
 						buildScript,
-						// "date; sleep 1; date; sleep 1; date; sleep 1; date;",
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							MountPath: "/home/user/.docker",
+							Name:      "docker-config",
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "docker-config",
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: secret.Name,
+						},
 					},
 				},
 			},
