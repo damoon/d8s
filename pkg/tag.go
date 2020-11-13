@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/api/core/v1"
@@ -16,9 +18,19 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 	args := r.URL.Query()
 
 	from := fmt.Sprintf("wedding-registry:5000/digests@%s", vars["name"])
-	to := fmt.Sprintf("wedding-registry:5000/image/%s:%s", args.Get("repo"), args.Get("tag"))
+	if !strings.HasPrefix(vars["name"], "sha256:") {
+		from = fmt.Sprintf("wedding-registry:5000/images/%s", url.PathEscape(escapePort(vars["name"])))
+	}
 
-	log.Printf("tag: %s as %s", from, to)
+	tag := args.Get("tag")
+	if tag == "" {
+		tag = "latest"
+	}
+
+	to := fmt.Sprintf(
+		"wedding-registry:5000/images/%s",
+		escapePort(fmt.Sprintf("%s:%s", args.Get("repo"), tag)),
+	)
 
 	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
@@ -47,13 +59,19 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 		},
 	}
 
-	err := s.executePod(r.Context(), pod, os.Stderr)
+	err := s.executePod(r.Context(), pod, w)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("execute tagging: %v", err)))
+		message(w, fmt.Sprintf("execute tagging: %v", err))
 		log.Printf("execute tagging: %v", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func escapePort(in string) string {
+	re := regexp.MustCompile(`:([0-9]+/)`)
+	escaped := re.ReplaceAll([]byte(in), []byte("_${1}"))
+	return string(escaped)
 }

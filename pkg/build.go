@@ -193,7 +193,6 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 	cfg.noCache = nocache == "1"
 
 	// registry authentitation
-	log.Printf("X-Registry-Config: %v", r.Header.Get("X-Registry-Config"))
 	dockerCfg, err := xRegistryConfig(r.Header.Get("X-Registry-Config")).toDockerConfig()
 	if err != nil {
 		return cfg, fmt.Errorf("extract registry config: %v", err)
@@ -255,7 +254,7 @@ func (o ObjectStore) presignContext(cfg *buildConfig) (string, error) {
 		Key:    aws.String(cfg.contextFilePath),
 	})
 
-	url, err := objectRequest.Presign(time.Hour)
+	url, err := objectRequest.Presign(10 * time.Minute)
 	if err != nil {
 		return "", fmt.Errorf("presign GET %s: %v", cfg.contextFilePath, err)
 	}
@@ -321,7 +320,7 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 
 	output := "--output type=image,push=true,name=wedding-registry:5000/digests"
 	if imageNames != "" {
-		output = fmt.Sprintf("--output type=image,push=true,name=\"%s\"", imageNames)
+		output = fmt.Sprintf("--output type=image,push=true,\"name=%s\"", imageNames)
 	}
 
 	// TODO add timeout for script
@@ -362,8 +361,8 @@ buildctl-daemonless.sh \
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:  "buildkit",
 					Image: "moby/buildkit:v0.7.2-rootless",
+					Name:  "buildkit",
 					Command: []string{
 						"sh",
 						"-c",

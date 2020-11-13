@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-docker-pull-tag-push
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      name: test-docker-pull-tag-push
+    spec:
+      containers:
+        - name: test
+          image: testing-image
+          command:
+            - bash
+            - -c
+            - |
+              set -euxo pipefail
+
+              docker pull alpine
+              if docker pull missing; then echo "this should fail"; false; else echo "exit code propagated"; fi
+
+              docker tag alpine wedding-registry:5000/test-push:alpine
+              if docker tag missing b; then echo "this should fail"; false; else echo "exit code propagated"; fi
+
+              docker push wedding-registry:5000/test-push:alpine
+              if docker push missing; then echo "this should fail"; false; else echo "exit code propagated"; fi
+
+              echo "done"
+          env:
+            - name: "DOCKER_HOST"
+              value: "tcp://wedding:2376"
+      restartPolicy: Never

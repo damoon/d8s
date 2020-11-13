@@ -40,8 +40,6 @@ func (x xRegistryConfig) toDockerConfig() (dockerConfig, error) {
 	}
 	creds := map[string]RegistryCred{}
 
-	log.Println(string(js))
-
 	err = json.Unmarshal(js, &creds)
 	if err != nil {
 		return dockerConfig{}, fmt.Errorf("unmarshal registry authentications: %v", err)

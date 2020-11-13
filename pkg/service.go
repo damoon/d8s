@@ -40,20 +40,21 @@ func (s *Service) routes() {
 	router := mux.NewRouter()
 	router.HandleFunc("/_ping", ping).Methods(http.MethodGet)
 	router.HandleFunc("/session", ignored).Methods(http.MethodPost)
-	router.HandleFunc("/v"+apiVersion+"/version", version).Methods(http.MethodGet)
+	router.HandleFunc("/{apiVersion}/version", version).Methods(http.MethodGet)
 
-	router.HandleFunc("/v"+apiVersion+"/build", s.build).Methods(http.MethodPost)
-	router.HandleFunc("/v"+apiVersion+"/images/{name}/tag", s.tagImage).Methods(http.MethodPost)
-	router.HandleFunc("/v"+apiVersion+"/images/{name:.+}/push", s.pushImage).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/build", s.build).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/images/{name:.+}/tag", s.tagImage).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/images/{name:.+}/push", s.pushImage).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/images/create", s.pullImage).Methods(http.MethodPost)
 
-	router.HandleFunc("/v"+apiVersion+"/containers/prune", containersPrune).Methods(http.MethodPost)
-	router.HandleFunc("/v"+apiVersion+"/images/json", imagesJSON).Methods(http.MethodGet)
-	router.HandleFunc("/v"+apiVersion+"/build/prune", buildPrune).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/containers/prune", containersPrune).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/images/json", imagesJSON).Methods(http.MethodGet)
+	router.HandleFunc("/{apiVersion}/build/prune", buildPrune).Methods(http.MethodPost)
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		stream(w, "This function is not supported by wedding.")
 		w.WriteHeader(http.StatusNotImplemented)
-		log.Printf("NOT FOUND: %v", r)
+		log.Printf("501 - Not Implemented: %s %s", r.Method, r.URL)
 	})
 
 	s.router = loggingMiddleware(router)
@@ -62,7 +63,7 @@ func (s *Service) routes() {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.Header.Get("User-Agent"), "kube-probe/") {
-			log.Printf("%s %s\n", r.Method, r.URL)
+			log.Printf("HTTP Request %s %s\n", r.Method, r.URL)
 		}
 
 		next.ServeHTTP(w, r)

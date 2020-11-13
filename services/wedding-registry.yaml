@@ -49,6 +49,11 @@ spec:
                   - sh
                   - -c
                   - "sleep 10"
+          env:
+            - name: REGISTRY_LOG_ACCESSLOG_DISABLED
+              value: "true"
+            - name: REGISTRY_LOG_LEVEL
+              value: "warn"
           volumeMounts:
             - name: data
               mountPath: /var/lib/registry

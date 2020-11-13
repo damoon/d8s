@@ -5,19 +5,56 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/gorilla/mux"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
+func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 	args := r.URL.Query()
 
-	from := fmt.Sprintf("wedding-registry:5000/images/%s:%s", vars["name"], args.Get("tag"))
-	to := fmt.Sprintf("%s:%s", vars["name"], args.Get("tag"))
+	fromImage := args.Get("fromImage")
+	if fromImage == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("image to pull is missing"))
+		return
+	}
+
+	pullTag := args.Get("tag")
+	if pullTag == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("tag to pull is missing"))
+		return
+	}
+
+	if args.Get("repo") != "" {
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte("repo is not supported"))
+		return
+	}
+
+	if args.Get("fromSrc") != "" {
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte("import from a file is not supported"))
+		return
+	}
+
+	if args.Get("message") != "" {
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte("message is not supported"))
+		return
+	}
+
+	if args.Get("platform") != "" {
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte("platform is not supported"))
+		return
+	}
+
+	from := fmt.Sprintf("%s:%s", fromImage, pullTag)
+	to := fmt.Sprintf("wedding-registry:5000/images/%s", url.PathEscape(from))
 
 	dockerCfg, err := xRegistryAuth(r.Header.Get("X-Registry-Auth")).toDockerConfig()
 	if err != nil {
@@ -60,12 +97,14 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 	buildScript := fmt.Sprintf(`
 set -euo pipefail
 
-skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s
+skopeo copy --dest-tls-verify=false docker://%s docker://%s
 `, from, to)
+
+	stream(w, buildScript)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "wedding-push-",
+			GenerateName: "wedding-pull-",
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{

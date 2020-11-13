@@ -110,13 +110,21 @@ func (s Service) podStatus(ctx context.Context, podName string) (corev1.PodPhase
 	return pod.Status.Phase, nil
 }
 
+func message(w io.Writer, message string) error {
+	return flush(w, "message", message)
+}
+
 func stream(w io.Writer, message string) error {
+	return flush(w, "stream", message)
+}
+
+func flush(w io.Writer, kind, message string) error {
 	b, err := json.Marshal(message)
 	if err != nil {
 		panic(err) // encode a string to json should not fail
 	}
 
-	_, err = w.Write([]byte(fmt.Sprintf(`{"stream": %s}`, b)))
+	_, err = w.Write([]byte(fmt.Sprintf(`{"%s": %s}`, kind, b)))
 	if err != nil {
 		return err
 	}
