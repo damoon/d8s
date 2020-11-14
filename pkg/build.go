@@ -420,8 +420,6 @@ func (d *digestParser) publish(w io.Writer) error {
 		return fmt.Errorf("digest not found")
 	}
 
-	log.Printf("found digest: %s", patterns[1])
-
 	_, err := w.Write([]byte(fmt.Sprintf(`{"aux":{"ID":"%s"}}`, patterns[1])))
 	if err != nil {
 		return err

@@ -6,7 +6,7 @@ Images are build using buildkit.\
 Images are taged using skopeo.
 
 This enables running Tilt setups in gitlab pipelines without running a docker in docker daemon or exposing a host docker socket.\
-This avoids to maintain a tilt configuration with (ci) and without (local dev) custom_build.
+Building images remotely allows to work from locations with slow internet upstream (home office).
 
 ## Use case 1
 
