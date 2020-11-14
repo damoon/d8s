@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +15,7 @@ import (
 func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) error {
 	podClient := s.kubernetesClient.CoreV1().Pods(s.namespace)
 
-	stream(w, "Creating new pod.\n")
+	w.Write([]byte("Creating new pod.\n"))
 
 	pod, err := podClient.Create(ctx, pod, metav1.CreateOptions{})
 	if err != nil {
@@ -30,11 +29,13 @@ func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) e
 
 	defer func() {
 		if failed {
-			stream(w, "Pod failed. Skipping cleanup.\n")
+			w.Write([]byte("Pod failed. Skipping cleanup.\n"))
 			return
 		}
 
-		stream(w, "Deleting pod.\n")
+		return
+
+		w.Write([]byte("Deleting pod.\n"))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -42,18 +43,18 @@ func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) e
 		err = podClient.Delete(ctx, pod.Name, metav1.DeleteOptions{})
 		if err != nil {
 			streamf(w, "Pod deletetion failed: %v\n", err)
-			log.Printf("delete pod: %v", err)
+			log.Printf("delete pod %s: %v", pod.Name, err)
 		}
 	}()
 
-	stream(w, "Waiting for pod execution.\n")
+	w.Write([]byte("Waiting for pod execution.\n"))
 
 waitRunning:
 	pod, err = s.kubernetesClient.CoreV1().Pods(s.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
 
 	if err != nil {
 		streamf(w, "Looking up pod: %v.\n", err)
-		return fmt.Errorf("look up pod: %v", err)
+		return fmt.Errorf("look up pod %s: %v", pod.Name, err)
 	}
 
 	switch pod.Status.Phase {
@@ -70,14 +71,14 @@ waitRunning:
 	}
 
 printLogs:
-	stream(w, "Streaming logs.\n")
+	// w.Write([]byte("Streaming logs.\n"))
 
 	podLogs, err := s.kubernetesClient.CoreV1().Pods(s.namespace).
 		GetLogs(pod.Name, &corev1.PodLogOptions{Follow: true}).
 		Stream(ctx)
 	if err != nil {
 		streamf(w, "Log streaming failed: %v\n", err)
-		return fmt.Errorf("streaming logs: %v", err)
+		return fmt.Errorf("streaming pod %s logs: %v", pod.Name, err)
 	}
 	defer podLogs.Close()
 
@@ -87,17 +88,34 @@ printLogs:
 		n, err := podLogs.Read(buf)
 		if err != nil {
 			if err == io.EOF {
-				stream(w, "End of logs reached.\n")
+				// w.Write([]byte("End of logs reached.\n"))
 				if failed {
-					return fmt.Errorf("pod failed")
+					return fmt.Errorf("pod %s failed", pod.Name)
 				}
-				return nil
+
+				for {
+					pod, err = s.kubernetesClient.CoreV1().Pods(s.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+					if err != nil {
+						streamf(w, "Looking up pod: %v.\n", err)
+						return fmt.Errorf("look up pod %s: %v", pod.Name, err)
+					}
+
+					switch pod.Status.Phase {
+					case "Succeeded":
+						return nil
+					case "Failed":
+						return fmt.Errorf("pod %s failed", pod.Name)
+					default:
+						log.Printf("pod %s phase %s", pod.Name, pod.Status.Phase)
+						time.Sleep(time.Second)
+					}
+				}
 			}
 
-			return fmt.Errorf("read logs: %v", err)
+			return fmt.Errorf("read pod %s logs: %v", pod.Name, err)
 		}
 
-		stream(w, string(buf[:n]))
+		w.Write([]byte(string(buf[:n])))
 	}
 }
 
@@ -110,34 +128,11 @@ func (s Service) podStatus(ctx context.Context, podName string) (corev1.PodPhase
 	return pod.Status.Phase, nil
 }
 
-func message(w io.Writer, message string) error {
-	return flush(w, "message", message)
-}
-
-func stream(w io.Writer, message string) error {
-	return flush(w, "stream", message)
-}
-
-func flush(w io.Writer, kind, message string) error {
-	b, err := json.Marshal(message)
+func streamf(w io.Writer, message string, args ...interface{}) []byte {
+	b, err := json.Marshal(fmt.Sprintf(message, args...))
 	if err != nil {
 		panic(err) // encode a string to json should not fail
 	}
 
-	_, err = w.Write([]byte(fmt.Sprintf(`{"%s": %s}`, kind, b)))
-	if err != nil {
-		return err
-	}
-
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
-	} else {
-		return fmt.Errorf("stream can not be flushed")
-	}
-
-	return nil
-}
-
-func streamf(w io.Writer, message string, args ...interface{}) error {
-	return stream(w, fmt.Sprintf(message, args...))
+	return []byte(fmt.Sprintf(`{"stream": %s}`, b))
 }

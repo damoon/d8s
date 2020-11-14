@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -275,9 +276,6 @@ func (o ObjectStore) deleteContext(ctx context.Context, cfg *buildConfig) error 
 }
 
 func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.ResponseWriter) error {
-
-	stream(w, fmt.Sprintf("%v", cfg))
-
 	presignedContextURL, err := s.objectStore.presignContext(cfg)
 	if err != nil {
 		return err
@@ -325,19 +323,11 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 
 	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
-set -euo pipefail
+set -euxo pipefail
 
 mkdir ~/context && cd ~/context
 
-mkdir -p ~/.config/buildkit/
-echo "
-[registry.\"wedding-registry:5000\"]
-http = true
-insecure = true
-" > ~/.config/buildkit/buildkitd.toml
-
-echo Downloading context
-wget -O - "%s" | tar -xf - # --quiet
+wget -O - "%s" | tar -xf -
 
 export BUILDKITD_FLAGS="--oci-worker-no-process-sandbox"
 export BUILDCTL_CONNECT_RETRIES_MAX=100
@@ -351,8 +341,6 @@ buildctl-daemonless.sh \
  --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
  --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
 `, presignedContextURL, output)
-
-	stream(w, buildScript)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -373,6 +361,10 @@ buildctl-daemonless.sh \
 							MountPath: "/home/user/.docker",
 							Name:      "docker-config",
 						},
+						{
+							MountPath: "/home/user/.config/buildkit",
+							Name:      "buildkitd-config",
+						},
 					},
 				},
 			},
@@ -385,15 +377,53 @@ buildctl-daemonless.sh \
 						},
 					},
 				},
+				{
+					Name: "buildkitd-config",
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "buildkitd-config",
+							},
+						},
+					},
+				},
 			},
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
 
-	err = s.executePod(ctx, pod, w)
+	streamer := streamer{w: w}
+
+	err = s.executePod(ctx, pod, streamer)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+type streamer struct {
+	w io.Writer
+}
+
+func (s streamer) Write(b []byte) (int, error) {
+	i := len(b)
+
+	b, err := json.Marshal(string(b))
+	if err != nil {
+		panic(err) // encode a string to json should not fail
+	}
+
+	_, err = s.w.Write([]byte(fmt.Sprintf(`{"stream": %s}`, b)))
+	if err != nil {
+		return 0, err
+	}
+
+	if f, ok := s.w.(http.Flusher); ok {
+		f.Flush()
+	} else {
+		return 0, fmt.Errorf("stream can not be flushed")
+	}
+
+	return i, nil
 }

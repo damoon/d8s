@@ -1,8 +1,10 @@
 package wedding
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -16,7 +18,7 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	args := r.URL.Query()
 
-	from := fmt.Sprintf("wedding-registry:5000/images/%s:%s", vars["name"], args.Get("tag"))
+	from := fmt.Sprintf("wedding-registry:5000/images/%s:%s", escapePort(vars["name"]), args.Get("tag"))
 	to := fmt.Sprintf("%s:%s", vars["name"], args.Get("tag"))
 
 	dockerCfg, err := xRegistryAuth(r.Header.Get("X-Registry-Auth")).toDockerConfig()
@@ -58,7 +60,7 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 
 	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
-set -euo pipefail
+set -euxo pipefail
 
 skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s
 `, from, to)
@@ -99,13 +101,17 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 		},
 	}
 
-	err = s.executePod(r.Context(), pod, w)
+	b := &bytes.Buffer{}
+	messanger := streamer{w: w}
+	err = s.executePod(r.Context(), pod, b)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		stream(w, fmt.Sprintf("execute push: %v", err))
+		io.Copy(w, b)
+		w.Write([]byte(fmt.Sprintf("execute push: %v", err)))
 		log.Printf("execute push: %v", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+	io.Copy(messanger, b)
 }

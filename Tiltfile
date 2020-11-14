@@ -7,6 +7,7 @@ min_tilt_version('0.15.0') # includes fix for auto_init+False with tilt ci
 include('./services/Tiltfile')
 include('./tests/Tiltfile')
 
+k8s_yaml('deployment/config.yaml')
 k8s_yaml('deployment/kubernetes.yaml')
 
 if os.environ.get('PROD', '') ==  '':
@@ -57,5 +58,5 @@ else:
 k8s_resource(
   'wedding',
   port_forwards=['12376:2376'],
-  resource_deps=['setup-s3-bucket', 'wedding-registry'],
+  resource_deps=['setup-s3-bucket', 'wedding-registry', 'docker-io-mirror'],
 )

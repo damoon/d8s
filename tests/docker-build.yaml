@@ -3,7 +3,7 @@ kind: Job
 metadata:
   name: test-docker-build
 spec:
-  backoffLimit: 1
+  backoffLimit: 0
   template:
     metadata:
       name: test-docker-build
@@ -18,7 +18,7 @@ spec:
               set -euxo pipefail
 
               docker build ./docker
-              if docker build missing; then echo "this should fail"; false; else echo "exit code propagated"; fi
+              # if docker build ./docker-broken; then echo "this should fail"; false; else echo "exit code propagated"; fi
 
               echo "done"
           env:

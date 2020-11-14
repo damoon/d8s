@@ -1,11 +1,13 @@
 package wedding
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -54,7 +56,8 @@ func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	from := fmt.Sprintf("%s:%s", fromImage, pullTag)
-	to := fmt.Sprintf("wedding-registry:5000/images/%s", url.PathEscape(from))
+	//	to := fmt.Sprintf("wedding-registry:5000/images/%s", url.PathEscape(from))
+	to := fmt.Sprintf("wedding-registry:5000/images/%s", escapePort(from))
 
 	dockerCfg, err := xRegistryAuth(r.Header.Get("X-Registry-Auth")).toDockerConfig()
 	if err != nil {
@@ -95,12 +98,10 @@ func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 
 	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
-set -euo pipefail
+set -euxo pipefail
 
 skopeo copy --dest-tls-verify=false docker://%s docker://%s
 `, from, to)
-
-	stream(w, buildScript)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -138,13 +139,43 @@ skopeo copy --dest-tls-verify=false docker://%s docker://%s
 		},
 	}
 
-	err = s.executePod(r.Context(), pod, w)
+	b := &bytes.Buffer{}
+	messanger := streamer{w: w}
+	err = s.executePod(r.Context(), pod, b)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		stream(w, fmt.Sprintf("execute push: %v", err))
+		io.Copy(w, b)
+		w.Write([]byte(fmt.Sprintf("execute push: %v", err)))
 		log.Printf("execute push: %v", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+	io.Copy(messanger, b)
+}
+
+type messanger struct {
+	w io.Writer
+}
+
+func (m messanger) Write(b []byte) (int, error) {
+	i := len(b)
+
+	b, err := json.Marshal(string(b))
+	if err != nil {
+		panic(err) // encode a string to json should not fail
+	}
+
+	_, err = m.w.Write([]byte(fmt.Sprintf(`{"message": %s}`, b)))
+	if err != nil {
+		return 0, err
+	}
+
+	if f, ok := m.w.(http.Flusher); ok {
+		f.Flush()
+	} else {
+		return 0, fmt.Errorf("stream can not be flushed")
+	}
+
+	return i, nil
 }

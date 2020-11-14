@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildkitd-config
+data:
+  buildkitd.toml: |
+    debug = true
+    
+    [worker.oci]
+      rootless = true 
+      noProcessSandbox = true
+
+    [registry."docker.io"]
+      mirrors = ["docker-io-mirror:5000"]
+
+    [registry."docker-io-mirror:5000"]
+      http = true
+      insecure = true
+
+    [registry."wedding-registry:5000"]
+      http = true
+      insecure = true

@@ -1,3 +1,3 @@
 FROM alpine
 
-RUN true
+RUN false

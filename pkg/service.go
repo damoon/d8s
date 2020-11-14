@@ -52,8 +52,8 @@ func (s *Service) routes() {
 	router.HandleFunc("/{apiVersion}/build/prune", buildPrune).Methods(http.MethodPost)
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		stream(w, "This function is not supported by wedding.")
 		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte("This function is not supported by wedding."))
 		log.Printf("501 - Not Implemented: %s %s", r.Method, r.URL)
 	})
 

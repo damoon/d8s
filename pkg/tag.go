@@ -1,10 +1,11 @@
 package wedding
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 
@@ -19,7 +20,8 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 
 	from := fmt.Sprintf("wedding-registry:5000/digests@%s", vars["name"])
 	if !strings.HasPrefix(vars["name"], "sha256:") {
-		from = fmt.Sprintf("wedding-registry:5000/images/%s", url.PathEscape(escapePort(vars["name"])))
+		// from = fmt.Sprintf("wedding-registry:5000/images/%s", url.PathEscape(escapePort(vars["name"])))
+		from = fmt.Sprintf("wedding-registry:5000/images/%s", escapePort(vars["name"]))
 	}
 
 	tag := args.Get("tag")
@@ -34,7 +36,7 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 
 	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
-set -euo pipefail
+set -euxo pipefail
 
 skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s
 `, from, to)
@@ -59,10 +61,12 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 		},
 	}
 
-	err := s.executePod(r.Context(), pod, w)
+	b := &bytes.Buffer{}
+	err := s.executePod(r.Context(), pod, b)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		message(w, fmt.Sprintf("execute tagging: %v", err))
+		io.Copy(w, b)
+		w.Write([]byte(fmt.Sprintf("execute tagging: %v", err)))
 		log.Printf("execute tagging: %v", err)
 		return
 	}

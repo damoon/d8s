@@ -3,7 +3,7 @@ kind: Job
 metadata:
   name: test-docker-pull-tag-push
 spec:
-  backoffLimit: 1
+  backoffLimit: 0
   template:
     metadata:
       name: test-docker-pull-tag-push
@@ -17,10 +17,10 @@ spec:
             - |
               set -euxo pipefail
 
-              docker pull alpine
-              if docker pull missing; then echo "this should fail"; false; else echo "exit code propagated"; fi
+              docker pull mirror.gcr.io/library/alpine
+              if docker pull mirror.gcr.io/library/missing; then echo "this should fail"; false; else echo "exit code propagated"; fi
 
-              docker tag alpine wedding-registry:5000/test-push:alpine
+              docker tag mirror.gcr.io/library/alpine wedding-registry:5000/test-push:alpine
               if docker tag missing b; then echo "this should fail"; false; else echo "exit code propagated"; fi
 
               docker push wedding-registry:5000/test-push:alpine
