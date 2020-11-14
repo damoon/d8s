@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: verify-b
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      name: verify-b
+    spec:
+      containers:
+        - name: verify-b
+          image: tiltdev/tilt:v0.17.11
+          command:
+            - bash
+            - -c
+            - |
+              set -euxo pipefail
+
+              curl --fail -o b service-b
+              echo b > b_
+              diff b b_
+
+              echo done
+              sleep 5
+          env:
+            - name: "DOCKER_HOST"
+              value: "tcp://wedding:2376"
+      restartPolicy: Never
