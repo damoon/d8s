@@ -1,10 +1,8 @@
 package wedding
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"time"
@@ -101,17 +99,10 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 		},
 	}
 
-	b := &bytes.Buffer{}
-	messanger := streamer{w: w}
-	err = s.executePod(r.Context(), pod, b)
+	o := &output{w: w}
+	err = s.executePod(r.Context(), pod, o)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		io.Copy(w, b)
-		w.Write([]byte(fmt.Sprintf("execute push: %v", err)))
 		log.Printf("execute push: %v", err)
-		return
+		o.Errorf("execute push: %v", err)
 	}
-
-	w.WriteHeader(http.StatusOK)
-	io.Copy(messanger, b)
 }

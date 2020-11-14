@@ -33,8 +33,6 @@ func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) e
 			return
 		}
 
-		return
-
 		w.Write([]byte("Deleting pod.\n"))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

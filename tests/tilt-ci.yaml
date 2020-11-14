@@ -26,9 +26,23 @@ spec:
               cd tilt
 
               tilt ci
+
+              sleep 10
+
+              curl --fail -o a http://service-a/
+              curl --fail -o b http://service-b/
+
+              echo a > a_
+              echo b > b_
+
+              diff a a_
+              diff b b_
+
               tilt down
 
               echo "done"
+
+              sleep 120
           env:
             - name: "DOCKER_HOST"
               value: "tcp://wedding:2376"

@@ -64,10 +64,10 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 	b := &bytes.Buffer{}
 	err := s.executePod(r.Context(), pod, b)
 	if err != nil {
+		log.Printf("execute tagging: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		io.Copy(w, b)
 		w.Write([]byte(fmt.Sprintf("execute tagging: %v", err)))
-		log.Printf("execute tagging: %v", err)
 		return
 	}
 

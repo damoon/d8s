@@ -2,11 +2,11 @@
 k8s_yaml('docker-build.yaml')
 k8s_resource('test-docker-build', resource_deps=['wedding'])
 
-#k8s_yaml('docker-pull-tag-push.yaml')
-#k8s_resource('test-docker-pull-tag-push', resource_deps=['wedding'])
+k8s_yaml('docker-pull-tag-push.yaml')
+k8s_resource('test-docker-pull-tag-push', resource_deps=['wedding'])
 
-#k8s_yaml('tilt-ci.yaml')
-#k8s_resource('test-tilt-ci', resource_deps=['wedding'])
+k8s_yaml('tilt-ci.yaml')
+k8s_resource('test-tilt-ci', resource_deps=['wedding'])
 
 docker_build(
   'testing-image',

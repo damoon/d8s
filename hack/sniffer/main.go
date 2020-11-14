@@ -16,6 +16,8 @@ import (
 func main() {
 	http.HandleFunc("/", sniffer)
 
+	log.Println("proxy http traffic from :23765 to http://127.0.0.1:2376")
+
 	if err := http.ListenAndServe(":23765", nil); err != nil {
 		log.Fatalf("listen and serve: %v", err)
 	}
@@ -53,7 +55,7 @@ func serveReverseProxy(target string, w http.ResponseWriter, r *http.Request) er
 		return printRespose(os.Stdout, w)
 	}
 
-	proxy.ServeHTTP(r, w)
+	proxy.ServeHTTP(w, r)
 
 	return nil
 }
@@ -66,7 +68,7 @@ func printRequest(w io.Writer, r *http.Request) (*bytes.Reader, error) {
 		return nil, fmt.Errorf("reading body: %v", err)
 	}
 
-	w.Write([]byte(fmt.Sprintf("req: %v\n\n", req)))
+	w.Write([]byte(fmt.Sprintf("req: %v\n\n", r)))
 
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 	reader := bytes.NewReader(body)
@@ -75,7 +77,7 @@ func printRequest(w io.Writer, r *http.Request) (*bytes.Reader, error) {
 }
 
 func printRespose(w io.Writer, resp *http.Response) error {
-	b, err := ioutil.ReadAll(wp.Body)
+	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

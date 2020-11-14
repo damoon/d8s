@@ -1,6 +1,7 @@
 package wedding
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -67,13 +69,9 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 
 	err = s.executeBuild(ctx, cfg, w)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("execute build: %v", err)))
 		log.Printf("execute build: %v", err)
 		return
 	}
-
-	w.Write([]byte(`{"aux":{"ID":"sha256:42341736246f8e99122d49e4c0e414f0a3e5f69a024e72a2ac1a39a2093d483f"}}`))
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
@@ -316,9 +314,9 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 		imageNames += fmt.Sprintf("wedding-registry:5000/images/%s", tag)
 	}
 
-	output := "--output type=image,push=true,name=wedding-registry:5000/digests"
+	destination := "--output type=image,push=true,name=wedding-registry:5000/digests"
 	if imageNames != "" {
-		output = fmt.Sprintf("--output type=image,push=true,\"name=%s\"", imageNames)
+		destination = fmt.Sprintf("--output type=image,push=true,\"name=%s\"", imageNames)
 	}
 
 	// TODO add timeout for script
@@ -340,7 +338,7 @@ buildctl-daemonless.sh \
  %s \
  --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
  --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
-`, presignedContextURL, output)
+`, presignedContextURL, destination)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -392,9 +390,15 @@ buildctl-daemonless.sh \
 		},
 	}
 
-	streamer := streamer{w: w}
+	o := &output{w: w}
+	d := &digestParser{w: o}
+	err = s.executePod(ctx, pod, d)
+	if err != nil {
+		o.Errorf("execute build: %v", err)
+		return err
+	}
 
-	err = s.executePod(ctx, pod, streamer)
+	err = d.publish(w)
 	if err != nil {
 		return err
 	}
@@ -402,28 +406,35 @@ buildctl-daemonless.sh \
 	return nil
 }
 
-type streamer struct {
-	w io.Writer
+type digestParser struct {
+	buf bytes.Buffer
+	w   io.Writer
 }
 
-func (s streamer) Write(b []byte) (int, error) {
-	i := len(b)
+func (d *digestParser) publish(w io.Writer) error {
+	patterns := regexp.
+		MustCompile(`exporting manifest (sha256:[0-9a-f]+)`).
+		FindStringSubmatch(d.buf.String())
 
-	b, err := json.Marshal(string(b))
-	if err != nil {
-		panic(err) // encode a string to json should not fail
+	if len(patterns) != 2 || patterns[1] == "" {
+		return fmt.Errorf("digest not found")
 	}
 
-	_, err = s.w.Write([]byte(fmt.Sprintf(`{"stream": %s}`, b)))
+	log.Printf("found digest: %s", patterns[1])
+
+	_, err := w.Write([]byte(fmt.Sprintf(`{"aux":{"ID":"%s"}}`, patterns[1])))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *digestParser) Write(bb []byte) (int, error) {
+	_, err := d.buf.Write(bb)
 	if err != nil {
 		return 0, err
 	}
 
-	if f, ok := s.w.(http.Flusher); ok {
-		f.Flush()
-	} else {
-		return 0, fmt.Errorf("stream can not be flushed")
-	}
-
-	return i, nil
+	return d.w.Write(bb)
 }

@@ -1,11 +1,8 @@
 package wedding
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"time"
@@ -139,43 +136,10 @@ skopeo copy --dest-tls-verify=false docker://%s docker://%s
 		},
 	}
 
-	b := &bytes.Buffer{}
-	messanger := streamer{w: w}
-	err = s.executePod(r.Context(), pod, b)
+	o := &output{w: w}
+	err = s.executePod(r.Context(), pod, o)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		io.Copy(w, b)
-		w.Write([]byte(fmt.Sprintf("execute push: %v", err)))
-		log.Printf("execute push: %v", err)
-		return
+		log.Printf("execute pull: %v", err)
+		o.Errorf("execute pull: %v", err)
 	}
-
-	w.WriteHeader(http.StatusOK)
-	io.Copy(messanger, b)
-}
-
-type messanger struct {
-	w io.Writer
-}
-
-func (m messanger) Write(b []byte) (int, error) {
-	i := len(b)
-
-	b, err := json.Marshal(string(b))
-	if err != nil {
-		panic(err) // encode a string to json should not fail
-	}
-
-	_, err = m.w.Write([]byte(fmt.Sprintf(`{"message": %s}`, b)))
-	if err != nil {
-		return 0, err
-	}
-
-	if f, ok := m.w.(http.Flusher); ok {
-		f.Flush()
-	} else {
-		return 0, fmt.Errorf("stream can not be flushed")
-	}
-
-	return i, nil
 }

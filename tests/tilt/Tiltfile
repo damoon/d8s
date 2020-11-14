@@ -6,9 +6,7 @@ min_tilt_version('0.15.0') # includes fix for auto_init+False with tilt ci
 
 k8s_yaml('kubernetes.yaml')
 
-docker_build('use-case-3-image', '.')
+default_registry('registry.registry.svc:5000')
 
-k8s_resource(
-  'use-case-3',
-  port_forwards=['8080:80'],
-)
+docker_build('service-a-image', './image-a')
+docker_build('service-b-image', './image-b')
