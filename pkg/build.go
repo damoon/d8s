@@ -3,11 +3,11 @@ package wedding
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,15 +28,13 @@ wedding builds only support these arguments: context, tag, buildargs, cachefrom,
 )
 
 type buildConfig struct {
-	buildArgs       map[string]string
-	labels          map[string]string
-	cacheRepo       string
+	//buildArgs       map[string]string
+	//labels          map[string]string
 	cpuMilliseconds int
-	dockerfile      string
+	dockerfile      string // TODO test path/Dockerfile
 	memoryBytes     int
-	target          string
-	tags            []string
-	noCache         bool
+	target          string   // TODO test
+	tags            []string // TODO test
 	registryAuth    dockerConfig
 	contextFilePath string
 }
@@ -86,7 +85,7 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 		"cpusetcpus": "",
 		"cpusetmems": "",
 		"cpushares":  "0",
-		// "dockerfile":   "use-case-1%2FDockerfile",
+		// "dockerfile":   "Dockerfile",
 		// "labels": "{}",
 		// "memory":       "1000",
 		"memswap": "0",
@@ -96,6 +95,7 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 		// "target":       "",
 		"ulimits": "null",
 		// "version": "1", // needs two ignored values
+		"nocache": "",
 	}
 
 	for k, v := range asserts {
@@ -104,62 +104,53 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 		}
 	}
 
+	cachefrom := r.URL.Query().Get("cachefrom")
+	if cachefrom != "[]" && cachefrom != "null" { // docker uses "[]", tilt uses "null" by default
+		return cfg, fmt.Errorf("unsupported argument cachefrom set to '%s'", cachefrom)
+	}
+
 	networkmode := r.URL.Query().Get("networkmode")
-	if networkmode != "default" && networkmode != "" { // docker uses "default", tilt uses ""
+	if networkmode != "default" && networkmode != "" { // docker uses "default", tilt uses "" by default
 		return cfg, fmt.Errorf("unsupported argument networkmode set to '%s'", networkmode)
 	}
 
 	version := r.URL.Query().Get("version")
-	if version != "1" && version != "2" { // docker uses "1", tilt uses "2"
+	if version != "1" && version != "2" { // docker uses "1", tilt uses "2" by default
 		return cfg, fmt.Errorf("unsupported argument version set to '%s'", version)
 	}
 
 	rm := r.URL.Query().Get("rm")
-	if rm != "1" && rm != "0" { // docker uses "1", tilt uses 02"
+	if rm != "1" && rm != "0" { // docker uses "1", tilt uses "0" by default
 		return cfg, fmt.Errorf("unsupported argument rm set to '%s'", rm)
 	}
 
-	err := json.Unmarshal([]byte(r.URL.Query().Get("buildargs")), &cfg.buildArgs)
-	if err != nil {
-		return cfg, fmt.Errorf("decode buildargs: %v", err)
-	}
+	// TODO implement
+	// err := json.Unmarshal([]byte(r.URL.Query().Get("buildargs")), &cfg.buildArgs)
+	// if err != nil {
+	// 	return cfg, fmt.Errorf("decode buildargs: %v", err)
+	// }
 
-	err = json.Unmarshal([]byte(r.URL.Query().Get("labels")), &cfg.labels)
-	if err != nil {
-		return cfg, fmt.Errorf("decode labels: %v", err)
-	}
-
-	// cache repo
-	cachefrom := []string{}
-	err = json.Unmarshal([]byte(r.URL.Query().Get("cachefrom")), &cachefrom)
-	if err != nil {
-		return cfg, fmt.Errorf("decode cachefrom: %v", err)
-	}
-
-	if len(cachefrom) > 1 {
-		return cfg, fmt.Errorf("wedding only supports one cachefrom image")
-	}
-	if len(cachefrom) == 1 {
-		cfg.cacheRepo = cachefrom[0]
-	}
-
-	// TODO set default cache from tag
+	// TODO implement
+	// err = json.Unmarshal([]byte(r.URL.Query().Get("labels")), &cfg.labels)
+	// if err != nil {
+	// 	return cfg, fmt.Errorf("decode labels: %v", err)
+	// }
 
 	// cpu limit
+	cpuquota, err := strconv.Atoi(r.URL.Query().Get("cpuquota"))
+	if err != nil {
+		return cfg, fmt.Errorf("parse cpu quota to int: %v", err)
+	}
+	if cpuquota == 0 {
+		cpuquota = buildCPUQuota
+	}
+
 	cpuperiod, err := strconv.Atoi(r.URL.Query().Get("cpuperiod"))
 	if err != nil {
 		return cfg, fmt.Errorf("parse cpu period to int: %v", err)
 	}
 	if cpuperiod == 0 {
-		cpuperiod = 100_000 // results in 1 cpu
-	}
-
-	cpuquota, err := strconv.Atoi(r.URL.Query().Get("cpuquota"))
-	if err != nil {
-		return cfg, fmt.Errorf("parse cpu quota to int: %v", err)
-	}
-	if cpuperiod == 0 {
-		cpuperiod = 100_000 // 100ms is the default of docker
+		cpuperiod = buildCPUPeriod
 	}
 
 	cfg.cpuMilliseconds = int(1000 * float64(cpuquota) / float64(cpuperiod))
@@ -186,10 +177,6 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 
 	// image tag
 	cfg.tags = r.URL.Query()["t"]
-
-	// disable cache
-	nocache := r.URL.Query().Get("nocache")
-	cfg.noCache = nocache == "1"
 
 	// registry authentitation
 	dockerCfg, err := xRegistryConfig(r.Header.Get("X-Registry-Config")).toDockerConfig()
@@ -303,26 +290,35 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 		destination = fmt.Sprintf("--output type=image,push=true,\"name=%s\"", imageNames)
 	}
 
-	// TODO add timeout for script
+	dockerfileName := filepath.Base(cfg.dockerfile)
+	dockerfileDir := filepath.Dir(cfg.dockerfile)
+
+	target := ""
+	if cfg.target != "" {
+		target = fmt.Sprintf("--opt target=%s", cfg.target)
+	}
+
 	buildScript := fmt.Sprintf(`
-set -euxo pipefail
+set -euo pipefail
 
+echo download bulid context
 mkdir ~/context && cd ~/context
-
 wget -O - "%s" | tar -xf -
 
+set -x
 export BUILDKITD_FLAGS="--oci-worker-no-process-sandbox"
 export BUILDCTL_CONNECT_RETRIES_MAX=100
 buildctl-daemonless.sh \
  build \
  --frontend dockerfile.v0 \
  --local context=. \
- --local dockerfile=. \
- --opt filename=Dockerfile \
+ --local dockerfile=%s \
+ --opt filename=%s \
+ %s \
  %s \
  --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
  --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
-`, presignedContextURL, destination)
+`, presignedContextURL, dockerfileDir, dockerfileName, target, destination)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -331,9 +327,13 @@ buildctl-daemonless.sh \
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Image: "moby/buildkit:v0.7.2-rootless",
+					Image: buildkitImage,
 					Name:  "buildkit",
 					Command: []string{
+						"timeout",
+						strconv.Itoa(maxBuildTime),
+					},
+					Args: []string{
 						"sh",
 						"-c",
 						buildScript,
@@ -346,6 +346,16 @@ buildctl-daemonless.sh \
 						{
 							MountPath: "/home/user/.config/buildkit",
 							Name:      "buildkitd-config",
+						},
+					},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cfg.cpuMilliseconds)),
+							corev1.ResourceMemory: resource.MustParse(strconv.Itoa(cfg.memoryBytes)),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cfg.cpuMilliseconds)),
+							corev1.ResourceMemory: resource.MustParse(strconv.Itoa(cfg.memoryBytes)),
 						},
 					},
 				},

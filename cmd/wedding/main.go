@@ -108,9 +108,8 @@ func run(c *cli.Context) error {
 
 	awaitShutdown()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
-	// TODO configure pod to allow a grace period of one hour
 
 	err = shutdown(ctx, svcServer)
 	if err != nil {
@@ -188,7 +187,6 @@ func setupKubernetesClient() (*kubernetes.Clientset, string, error) {
 
 func httpServer(h http.Handler, addr string) *http.Server {
 	httpServer := &http.Server{
-		// TODO do not timeout builds
 		ReadTimeout:  30 * time.Minute,
 		WriteTimeout: 30 * time.Minute,
 	}

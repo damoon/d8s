@@ -32,14 +32,13 @@ func sniffer(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveReverseProxy(target string, w http.ResponseWriter, r *http.Request) error {
-	_, err := printRequest(os.Stdout, r)
+	err := printRequest(os.Stdout, r)
 	if err != nil {
 		return err
 	}
 
 	url, err := url.Parse(target)
 	if err != nil {
-		// TODO Avoid panicing during runtime, parse url during start up once.
 		return fmt.Errorf("parse url %s: %v", target, err)
 	}
 
@@ -60,20 +59,17 @@ func serveReverseProxy(target string, w http.ResponseWriter, r *http.Request) er
 	return nil
 }
 
-func printRequest(w io.Writer, r *http.Request) (*bytes.Reader, error) {
-	// TODO To avoid OOM, check body size and use disk to cache.
-
-	body, err := ioutil.ReadAll(r.Body)
+func printRequest(w io.Writer, r *http.Request) error {
+	body, err := r.GetBody()
 	if err != nil {
-		return nil, fmt.Errorf("reading body: %v", err)
+		return fmt.Errorf("create copy of body: %v", err)
 	}
 
 	w.Write([]byte(fmt.Sprintf("req: %v\n\n", r)))
 
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-	reader := bytes.NewReader(body)
+	r.Body = body
 
-	return reader, nil
+	return nil
 }
 
 func printRespose(w io.Writer, resp *http.Response) error {

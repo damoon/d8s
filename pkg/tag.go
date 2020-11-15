@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,7 +36,6 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 		escapePort(fmt.Sprintf("%s:%s", args.Get("repo"), tag)),
 	)
 
-	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
 set -euxo pipefail
 
@@ -49,11 +50,25 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 			Containers: []corev1.Container{
 				{
 					Name:  "skopeo",
-					Image: "mrliptontea/skopeo:1.2.0",
+					Image: skopeoImage,
 					Command: []string{
+						"timeout",
+						strconv.Itoa(maxBuildTime),
+					},
+					Args: []string{
 						"sh",
 						"-c",
 						buildScript,
+					},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(skopeoCPU),
+							corev1.ResourceMemory: resource.MustParse(skopeoMemory),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(skopeoCPU),
+							corev1.ResourceMemory: resource.MustParse(skopeoMemory),
+						},
 					},
 				},
 			},

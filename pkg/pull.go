@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -93,7 +95,6 @@ func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// TODO add timeout for script
 	buildScript := fmt.Sprintf(`
 set -euxo pipefail
 
@@ -108,8 +109,12 @@ skopeo copy --dest-tls-verify=false docker://%s docker://%s
 			Containers: []corev1.Container{
 				{
 					Name:  "skopeo",
-					Image: "mrliptontea/skopeo:1.2.0",
+					Image: skopeoImage,
 					Command: []string{
+						"timeout",
+						strconv.Itoa(maxBuildTime),
+					},
+					Args: []string{
 						"sh",
 						"-c",
 						buildScript,
@@ -118,6 +123,16 @@ skopeo copy --dest-tls-verify=false docker://%s docker://%s
 						{
 							MountPath: "/root/.docker",
 							Name:      "docker-config",
+						},
+					},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(skopeoCPU),
+							corev1.ResourceMemory: resource.MustParse(skopeoMemory),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(skopeoCPU),
+							corev1.ResourceMemory: resource.MustParse(skopeoMemory),
 						},
 					},
 				},

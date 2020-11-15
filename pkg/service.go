@@ -9,7 +9,17 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const apiVersion = "1.40"
+const (
+	apiVersion     = "1.40"
+	maxBuildTime   = 1800
+	buildkitImage  = "moby/buildkit:v0.7.2-rootless"
+	skopeoImage    = "mrliptontea/skopeo:1.2.0"
+	buildMemory    = "2147483648" // 2Gi default
+	buildCPUQuota  = 100_000      // results in 1 cpu
+	buildCPUPeriod = 100_000      // 100ms is the default of docker
+	skopeoMemory   = "100Mi"
+	skopeoCPU      = "200m"
+)
 
 // Service runs the wedding server.
 type Service struct {
