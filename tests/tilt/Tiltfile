@@ -6,8 +6,8 @@ min_tilt_version('0.15.0') # includes fix for auto_init+False with tilt ci
 
 k8s_yaml('kubernetes.yaml')
 
-docker_build('service-a-image', './image-a')
-docker_build('service-b-image', './image-b')
+docker_build('service-a-image', './image-a', build_args={'ECHO': 'a'})
+docker_build('service-b-image', './image-b', target='http')
 
 k8s_yaml('verify-a.yaml')
 k8s_yaml('verify-b.yaml')

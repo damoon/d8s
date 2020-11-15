@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +29,9 @@ func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) e
 	failed := false
 
 	defer func() {
-		if failed {
+		// helpful for development: remove all failed pods
+		// kubectl get po | grep -E 'wedding-(push|pull|tag|build)' | awk '{ print $1 }' | xargs kubectl delete po
+		if failed && os.Getenv("KEEP_FAILED_PODS") != "" {
 			w.Write([]byte("Pod failed. Skipping cleanup.\n"))
 			return
 		}

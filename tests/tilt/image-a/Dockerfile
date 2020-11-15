@@ -1,3 +1,4 @@
 FROM nginx
 
-COPY index.html /usr/share/nginx/html/index.html
+ARG ECHO
+RUN echo $ECHO > /usr/share/nginx/html/index.html

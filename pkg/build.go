@@ -3,6 +3,7 @@ package wedding
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -28,13 +29,13 @@ wedding builds only support these arguments: context, tag, buildargs, cachefrom,
 )
 
 type buildConfig struct {
-	//buildArgs       map[string]string
-	//labels          map[string]string
+	buildArgs       map[string]string
+	labels          map[string]string
 	cpuMilliseconds int
-	dockerfile      string // TODO test path/Dockerfile
+	dockerfile      string
 	memoryBytes     int
-	target          string   // TODO test
-	tags            []string // TODO test
+	target          string
+	tags            []string
 	registryAuth    dockerConfig
 	contextFilePath string
 }
@@ -124,17 +125,15 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 		return cfg, fmt.Errorf("unsupported argument rm set to '%s'", rm)
 	}
 
-	// TODO implement
-	// err := json.Unmarshal([]byte(r.URL.Query().Get("buildargs")), &cfg.buildArgs)
-	// if err != nil {
-	// 	return cfg, fmt.Errorf("decode buildargs: %v", err)
-	// }
+	err := json.Unmarshal([]byte(r.URL.Query().Get("buildargs")), &cfg.buildArgs)
+	if err != nil {
+		return cfg, fmt.Errorf("decode buildargs: %v", err)
+	}
 
-	// TODO implement
-	// err = json.Unmarshal([]byte(r.URL.Query().Get("labels")), &cfg.labels)
-	// if err != nil {
-	// 	return cfg, fmt.Errorf("decode labels: %v", err)
-	// }
+	err = json.Unmarshal([]byte(r.URL.Query().Get("labels")), &cfg.labels)
+	if err != nil {
+		return cfg, fmt.Errorf("decode labels: %v", err)
+	}
 
 	// cpu limit
 	cpuquota, err := strconv.Atoi(r.URL.Query().Get("cpuquota"))
@@ -287,7 +286,7 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 
 	destination := "--output type=image,push=true,name=wedding-registry:5000/digests"
 	if imageNames != "" {
-		destination = fmt.Sprintf("--output type=image,push=true,\"name=%s\"", imageNames)
+		destination = fmt.Sprintf(`--output type=image,push=true,\"name=%s\"`, imageNames)
 	}
 
 	dockerfileName := filepath.Base(cfg.dockerfile)
@@ -296,6 +295,16 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 	target := ""
 	if cfg.target != "" {
 		target = fmt.Sprintf("--opt target=%s", cfg.target)
+	}
+
+	buildargs := ""
+	for k, v := range cfg.buildArgs {
+		buildargs += fmt.Sprintf("--opt build-arg:%s='%s' ", k, v)
+	}
+
+	labels := ""
+	for k, v := range cfg.labels {
+		buildargs += fmt.Sprintf("--opt label:%s='%s' ", k, v)
 	}
 
 	buildScript := fmt.Sprintf(`
@@ -316,9 +325,11 @@ buildctl-daemonless.sh \
  --opt filename=%s \
  %s \
  %s \
+ %s \
+ %s \
  --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
  --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
-`, presignedContextURL, dockerfileDir, dockerfileName, target, destination)
+`, presignedContextURL, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

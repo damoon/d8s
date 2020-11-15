@@ -1,13 +1,21 @@
 
-docker_build('testing-image', './..', dockerfile='Dockerfile')
+local_resource ('test docker build',
+  'time timeout 60 bash docker-build.sh',
+  deps=['..'],
+  resource_deps=['wedding'],
+  allow_parallel=True,
+)
 
-k8s_yaml('docker-build.yaml')
-k8s_resource('test-docker-build', resource_deps=['wedding'])
-
-k8s_yaml('docker-pull-tag-push.yaml')
-k8s_resource('test-docker-pull-tag-push', resource_deps=['wedding'])
+local_resource ('test docker pull tag push',
+  'time timeout 60 bash docker-pull-tag-push.sh',
+  deps=['..'],
+  resource_deps=['wedding'],
+  allow_parallel=True,
+)
 
 local_resource ('test tilt ci',
-  'bash tilt-ci.sh',
+  'time timeout 180 bash tilt-ci.sh',
+  deps=['..'],
   resource_deps=['wedding'],
+  allow_parallel=True,
 )
