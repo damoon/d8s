@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	wedding "github.com/damoon/wedding/pkg"
 	"github.com/urfave/cli/v2"
 	"k8s.io/client-go/kubernetes"
@@ -152,16 +153,17 @@ func setupObjectStore(
 		S3ForcePathStyle: aws.Bool(true),
 	}
 
-	newSession, err := session.NewSession(s3Config)
+	sess, err := session.NewSession(s3Config)
 	if err != nil {
 		return nil, fmt.Errorf("set up aws session: %v", err)
 	}
 
-	s3Client := s3.New(newSession)
+	s3Client := s3.New(sess)
 
 	return &wedding.ObjectStore{
-		Client: s3Client,
-		Bucket: bucket,
+		Client:   s3Client,
+		Uploader: s3manager.NewUploader(sess),
+		Bucket:   bucket,
 	}, nil
 }
 

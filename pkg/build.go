@@ -6,16 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,8 +42,9 @@ type buildConfig struct {
 
 // ObjectStore manages access to a S3 compatible file store.
 type ObjectStore struct {
-	Client *s3.S3
-	Bucket string
+	Client   *s3.S3
+	Uploader *s3manager.Uploader
+	Bucket   string
 }
 
 func (s Service) build(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +56,7 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.objectStore.storeContext(ctx, r, cfg)
+	err = s.objectStore.storeContext(ctx, r.Body, cfg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
@@ -213,37 +213,21 @@ func printBuildHelpText(w http.ResponseWriter, err error) {
 	}
 }
 
-func (o ObjectStore) storeContext(ctx context.Context, r *http.Request, cfg *buildConfig) error {
-
-	// BUG: possible OOM: loading all context into memory
-	b, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return fmt.Errorf("read context: %v", err)
-	}
-
+func (o ObjectStore) storeContext(ctx context.Context, r io.Reader, cfg *buildConfig) error {
 	path := fmt.Sprintf("%d.tar", time.Now().UnixNano())
+	cfg.contextFilePath = path
 
-	ioutil.WriteFile(path, b, os.ModePerm)
-
-	file, err := os.Open(path)
-	defer file.Close()
-
-	put := &s3.PutObjectInput{
+	_, err := o.Uploader.Upload(&s3manager.UploadInput{
 		Bucket:      aws.String(o.Bucket),
 		Key:         aws.String(path),
 		ContentType: aws.String("application/x-tar"),
-		Body:        file,
-	}
-
-	_, err = o.Client.PutObjectWithContext(ctx, put)
+		Body:        r,
+	})
 	if err != nil {
-		return fmt.Errorf("upload context to bucket: %v", err)
+		return fmt.Errorf("upload build context to bucket: %v", err)
 	}
-
-	cfg.contextFilePath = path
 
 	return nil
-
 }
 
 func (o ObjectStore) presignContext(cfg *buildConfig) (string, error) {
