@@ -19,7 +19,7 @@ func Test_xRegistryAuth_toDockerConfig(t *testing.T) {
 				EncodeToString([]byte(`{"username":"user", "password":"pass123", "serveraddress":"reg.domain.tld"}`))),
 			want: dockerConfig{
 				Auths: map[string]dockerAuth{
-					"reg.domain.tld": dockerAuth{
+					"reg.domain.tld": {
 						Auth: base64.StdEncoding.EncodeToString([]byte("user:pass123")),
 					},
 				},
@@ -60,7 +60,7 @@ func Test_dockerConfig_mustToJSON(t *testing.T) {
 		},
 		{
 			name: "logged in",
-			auths: map[string]dockerAuth{"reg": dockerAuth{
+			auths: map[string]dockerAuth{"reg": {
 				Auth: base64.StdEncoding.EncodeToString([]byte("user:pass123")),
 			}},
 			want: []byte(`{"auths":{"reg":{"auth":"dXNlcjpwYXNzMTIz"}}}`),
