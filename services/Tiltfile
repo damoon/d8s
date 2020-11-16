@@ -13,6 +13,3 @@ k8s_resource(
 
 k8s_yaml('wedding-registry.yaml')
 k8s_resource('wedding-registry', port_forwards=5000)
-
-k8s_yaml('docker-io-mirror.yaml')
-k8s_resource('docker-io-mirror', port_forwards="5001:5000")

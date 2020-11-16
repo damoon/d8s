@@ -7,7 +7,7 @@ local_resource ('test docker build',
 )
 
 local_resource ('test docker pull tag push',
-  'timeout 80 bash docker-pull-tag-push.sh',
+  'timeout 100 bash docker-pull-tag-push.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,

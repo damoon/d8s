@@ -58,5 +58,5 @@ else:
 k8s_resource(
   'wedding',
   port_forwards=['12376:2376'],
-  resource_deps=['setup-s3-bucket', 'wedding-registry', 'docker-io-mirror'],
+  resource_deps=['setup-s3-bucket', 'wedding-registry'],
 )
