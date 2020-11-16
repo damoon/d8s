@@ -60,14 +60,14 @@ func serveReverseProxy(target string, w http.ResponseWriter, r *http.Request) er
 }
 
 func printRequest(w io.Writer, r *http.Request) error {
-	body, err := r.GetBody()
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("create copy of body: %v", err)
+		return fmt.Errorf("reading body: %v", err)
 	}
 
 	w.Write([]byte(fmt.Sprintf("req: %v\n\n", r)))
 
-	r.Body = body
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 	return nil
 }

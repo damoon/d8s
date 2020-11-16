@@ -67,12 +67,11 @@ func version(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf(`{
   "Components": [
     {
-      "Name": "Engine",
-      "Version": "19.03.8",
+      "Name": "Wedding",
       "Details": {
-        "ApiVersion": "%s",
-        "Experimental": "false",
-        "MinAPIVersion": "1.12"
+        "Scheduler": "kubernetes",
+        "Builds": "buildkit",
+        "Pull/Tag/Push": "skopeo"
       }
     }
   ],
@@ -80,7 +79,7 @@ func version(w http.ResponseWriter, r *http.Request) {
   "ApiVersion": "%s",
   "MinAPIVersion": "1.12"
 }
-`, apiVersion, apiVersion)))
+`, apiVersion)))
 }
 
 func buildPrune(w http.ResponseWriter, r *http.Request) {

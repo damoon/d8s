@@ -1,20 +1,20 @@
 
 local_resource ('test docker build',
-  'time timeout 60 bash docker-build.sh',
+  'timeout 60 bash docker-build.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
 )
 
 local_resource ('test docker pull tag push',
-  'time timeout 60 bash docker-pull-tag-push.sh',
+  'timeout 80 bash docker-pull-tag-push.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
 )
 
 local_resource ('test tilt ci',
-  'time timeout 180 bash tilt-ci.sh',
+  'timeout 170 bash tilt-ci.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
