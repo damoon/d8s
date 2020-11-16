@@ -26,6 +26,5 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build-env /etc/mime.types /etc/mime.types
 COPY --from=build-env /go/bin/wedding /usr/local/bin/wedding
 ENTRYPOINT [ "wedding", "server" ]

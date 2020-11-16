@@ -63,23 +63,28 @@ func ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func version(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(fmt.Sprintf(`{
-  "Components": [
-    {
-      "Name": "Wedding",
-      "Details": {
-        "Scheduler": "kubernetes",
-        "Builds": "buildkit",
-        "Pull/Tag/Push": "skopeo"
-      }
-    }
-  ],
-  "Version": "19.03.8",
-  "ApiVersion": "%s",
-  "MinAPIVersion": "1.12"
+func versionHandler(gitHash, gitRef string) http.HandlerFunc {
+	tmpl := `{
+	"Components": [
+		{
+			"Name": "Wedding",
+			"Details": {
+				"Scheduler": "kubernetes",
+				"Builds": "buildkit",
+				"Pull/Tag/Push": "skopeo",
+				"GitCommit": "%s",
+				"GitBranch": "%s"
+			}
+		}
+	],
+	"Version": "19.03.8",
+	"ApiVersion": "%s",
+	"MinAPIVersion": "1.12"
 }
-`, apiVersion)))
+`
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(fmt.Sprintf(tmpl, gitHash, gitRef, apiVersion)))
+	}
 }
 
 func buildPrune(w http.ResponseWriter, r *http.Request) {

@@ -30,14 +30,14 @@ type Service struct {
 }
 
 // NewService creates a new service server and initiates the routes.
-func NewService(objectStore *ObjectStore, kubernetesClient *kubernetes.Clientset, namespace string) *Service {
+func NewService(gitHash, gitRef string, objectStore *ObjectStore, kubernetesClient *kubernetes.Clientset, namespace string) *Service {
 	srv := &Service{
 		objectStore:      objectStore,
 		namespace:        namespace,
 		kubernetesClient: kubernetesClient,
 	}
 
-	srv.routes()
+	srv.routes(gitHash, gitRef)
 
 	return srv
 }
@@ -46,11 +46,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
 
-func (s *Service) routes() {
+func (s *Service) routes(gitHash, gitRef string) {
 	router := mux.NewRouter()
 	router.HandleFunc("/_ping", ping).Methods(http.MethodGet)
 	router.HandleFunc("/session", ignored).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/version", version).Methods(http.MethodGet)
+	router.HandleFunc("/{apiVersion}/version", versionHandler(gitHash, gitRef)).Methods(http.MethodGet)
 
 	router.HandleFunc("/{apiVersion}/build", s.build).Methods(http.MethodPost)
 	router.HandleFunc("/{apiVersion}/images/{name:.+}/tag", s.tagImage).Methods(http.MethodPost)

@@ -96,7 +96,7 @@ func run(c *cli.Context) error {
 
 	log.Println("set up service")
 
-	svc := wedding.NewService(storage, kubernetesClient, namespace)
+	svc := wedding.NewService(gitHash, gitRef, storage, kubernetesClient, namespace)
 
 	svcServer := httpServer(svc, c.String("addr"))
 
