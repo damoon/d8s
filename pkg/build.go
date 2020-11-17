@@ -162,7 +162,7 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 
 	// memory limit
 	memoryArg := r.URL.Query().Get("memory")
-	if memoryArg == "" {
+	if memoryArg == "" || memoryArg == "0" {
 		memoryArg = "2147483648" // 2Gi default
 	}
 	memory, err := strconv.Atoi(memoryArg)
