@@ -4,7 +4,7 @@ allow_k8s_contexts(['test', 'ci'])
 load('ext://min_tilt_version', 'min_tilt_version')
 min_tilt_version('0.15.0') # includes fix for auto_init+False with tilt ci
 
-include('./services/Tiltfile')
+include('./service-dependencies/Tiltfile')
 include('./tests/Tiltfile')
 
 k8s_yaml('deployment/config.yaml')
@@ -12,7 +12,7 @@ k8s_yaml('deployment/kubernetes.yaml')
 
 if os.environ.get('PROD', '') ==  '':
   docker_build(
-    'wedding-image',
+    'davedamoon/wedding:latest',
     '.',
     dockerfile='deployment/Dockerfile',
     target='build-env',
@@ -38,7 +38,7 @@ if os.environ.get('PROD', '') ==  '':
   )
 else:
   docker_build(
-    'backend-image',
+    'davedamoon/wedding:latest',
     '.',
     dockerfile='deployment/Dockerfile',
     build_args={"SOURCE_BRANCH":"development", "SOURCE_COMMIT":"development"},

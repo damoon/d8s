@@ -10,7 +10,7 @@ Building images remotely allows to work from locations with slow internet upstre
 
 ## Use case 1
 
-Using docker cli to build and push an image.
+Using docker cli to build and push an image from within gitlab ci, without a running docker daemon.
 
 ``` bash
 export DOCKER_HOST=tcp://wedding:2376
@@ -19,7 +19,7 @@ docker build -t registry/user/image:tag .
 
 ## Use case 2
 
-Using tilt to set up and test an environment.
+Using tilt to set up and test an environment from within gitlab ci, without a running docker daemon.
 
 ``` bash
 export DOCKER_HOST=tcp://wedding:2376
@@ -28,11 +28,11 @@ tilt ci
 
 ## Use case 3
 
-Using tilt to set up a development environment without a running local docker.
+Using tilt to set up a development environment without running a local docker daemon.
 
 _Terminal 1_
 ``` bash
-kubectl -n wedding port-forward svc/wedding 2376:2376
+kubectl port-forward svc/wedding 2376:2376
 ```
 
 _Terminal 2_

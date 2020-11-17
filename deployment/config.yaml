@@ -4,7 +4,6 @@ metadata:
   name: buildkitd-config
 data:
   buildkitd.toml: |
-    debug = true
     
     [worker.oci]
       rootless = true 

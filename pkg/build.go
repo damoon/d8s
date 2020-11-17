@@ -315,8 +315,6 @@ mkdir ~/context && cd ~/context
 wget -O - "%s" | tar -xf -
 
 set -x
-export BUILDKITD_FLAGS="--oci-worker-no-process-sandbox"
-export BUILDCTL_CONNECT_RETRIES_MAX=100
 buildctl-daemonless.sh \
  build \
  --frontend dockerfile.v0 \

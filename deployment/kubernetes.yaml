@@ -27,7 +27,7 @@ spec:
       serviceAccountName: wedding
       containers:
         - name: wedding
-          image: wedding-image
+          image: davedamoon/wedding:latest
           args:
             - --s3-endpoint=minio:9000
             - --s3-access-key-file=/secret/minio/MINIO_ACCESS_KEY

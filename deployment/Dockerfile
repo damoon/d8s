@@ -15,11 +15,12 @@ RUN go mod download
 ARG SOURCE_BRANCH
 ARG SOURCE_COMMIT
 
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+
 COPY cmd cmd
 COPY pkg pkg
-RUN CGO_ENABLED=0 \
-    GOOS=linux \
-    go install -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
+RUN go install -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
 
 ###############################################################
 FROM alpine:3.12.1
