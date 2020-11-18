@@ -13,6 +13,13 @@ local_resource ('test docker pull tag push',
   allow_parallel=True,
 )
 
+local_resource ('test docker inspect',
+  'timeout 100 bash docker-inspect.sh',
+  deps=['..'],
+  resource_deps=['wedding'],
+  allow_parallel=True,
+)
+
 local_resource ('test tilt ci',
   'timeout 170 bash tilt-ci.sh',
   deps=['..'],

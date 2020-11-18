@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -108,7 +107,7 @@ func run(c *cli.Context) error {
 
 	awaitShutdown()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), wedding.MaxExecutionTime)
 	defer cancel()
 
 	err = shutdown(ctx, svcServer)
@@ -187,8 +186,8 @@ func setupKubernetesClient() (*kubernetes.Clientset, string, error) {
 
 func httpServer(h http.Handler, addr string) *http.Server {
 	httpServer := &http.Server{
-		ReadTimeout:  30 * time.Minute,
-		WriteTimeout: 30 * time.Minute,
+		ReadTimeout:  wedding.MaxExecutionTime,
+		WriteTimeout: wedding.MaxExecutionTime,
 	}
 	httpServer.Addr = addr
 	httpServer.Handler = h

@@ -34,9 +34,9 @@ spec:
             - --s3-secret-key-file=/secret/minio/MINIO_SECRET_KEY
             - --s3-ssl=false
             - --s3-bucket=wedding
-#          env:
-#            - name: KEEP_FAILED_PODS
-#              value: "yes"
+          env:
+            - name: KEEP_FAILED_PODS
+              value: "yes"
           ports:
             - name: wedding
               containerPort: 2376

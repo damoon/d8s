@@ -4,14 +4,17 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
+	// MaxExecutionTime is the longest time allowed for a command to run.
+	MaxExecutionTime = 30 * time.Minute
+
 	apiVersion     = "1.40"
-	maxBuildTime   = 1800
 	buildkitImage  = "moby/buildkit:v0.7.2-rootless"
 	skopeoImage    = "mrliptontea/skopeo:1.2.0"
 	buildMemory    = "2147483648" // 2Gi default
@@ -51,10 +54,12 @@ func (s *Service) routes(gitHash, gitRef string) {
 	router.HandleFunc("/_ping", ping).Methods(http.MethodGet)
 	router.HandleFunc("/session", ignored).Methods(http.MethodPost)
 	router.HandleFunc("/{apiVersion}/version", versionHandler(gitHash, gitRef)).Methods(http.MethodGet)
+	router.HandleFunc("/{apiVersion}/info", ignored).Methods(http.MethodGet)
 
 	router.HandleFunc("/{apiVersion}/build", s.build).Methods(http.MethodPost)
 	router.HandleFunc("/{apiVersion}/images/{name:.+}/tag", s.tagImage).Methods(http.MethodPost)
 	router.HandleFunc("/{apiVersion}/images/{name:.+}/push", s.pushImage).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/images/{name:.+}/json", s.inspect).Methods(http.MethodGet)
 	router.HandleFunc("/{apiVersion}/images/create", s.pullImage).Methods(http.MethodPost)
 
 	router.HandleFunc("/{apiVersion}/containers/prune", containersPrune).Methods(http.MethodPost)

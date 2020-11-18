@@ -16,15 +16,10 @@ import (
 func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) error {
 	podClient := s.kubernetesClient.CoreV1().Pods(s.namespace)
 
-	w.Write([]byte("Creating new pod.\n"))
-
 	pod, err := podClient.Create(ctx, pod, metav1.CreateOptions{})
 	if err != nil {
-		streamf(w, "Pod creation failed: %v\n", err)
 		return fmt.Errorf("create pod: %v", err)
 	}
-
-	streamf(w, "Created pod %v.\n", pod.Name)
 
 	failed := false
 
@@ -32,29 +27,22 @@ func (s Service) executePod(ctx context.Context, pod *corev1.Pod, w io.Writer) e
 		// helpful for development: remove all failed pods
 		// kubectl get po | grep -E 'wedding-(push|pull|tag|build)' | awk '{ print $1 }' | xargs kubectl delete po
 		if failed && os.Getenv("KEEP_FAILED_PODS") != "" {
-			w.Write([]byte("Pod failed. Skipping cleanup.\n"))
 			return
 		}
-
-		w.Write([]byte("Deleting pod.\n"))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		err = podClient.Delete(ctx, pod.Name, metav1.DeleteOptions{})
 		if err != nil {
-			streamf(w, "Pod deletetion failed: %v\n", err)
 			log.Printf("delete pod %s: %v", pod.Name, err)
 		}
 	}()
-
-	w.Write([]byte("Waiting for pod execution.\n"))
 
 waitRunning:
 	pod, err = s.kubernetesClient.CoreV1().Pods(s.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
 
 	if err != nil {
-		streamf(w, "Looking up pod: %v.\n", err)
 		return fmt.Errorf("look up pod %s: %v", pod.Name, err)
 	}
 
@@ -72,13 +60,10 @@ waitRunning:
 	}
 
 printLogs:
-	// w.Write([]byte("Streaming logs.\n"))
-
 	podLogs, err := s.kubernetesClient.CoreV1().Pods(s.namespace).
 		GetLogs(pod.Name, &corev1.PodLogOptions{Follow: true}).
 		Stream(ctx)
 	if err != nil {
-		streamf(w, "Log streaming failed: %v\n", err)
 		return fmt.Errorf("streaming pod %s logs: %v", pod.Name, err)
 	}
 	defer podLogs.Close()
@@ -89,7 +74,6 @@ printLogs:
 		n, err := podLogs.Read(buf)
 		if err != nil {
 			if err == io.EOF {
-				// w.Write([]byte("End of logs reached.\n"))
 				if failed {
 					return fmt.Errorf("pod %s failed", pod.Name)
 				}
@@ -97,7 +81,6 @@ printLogs:
 				for {
 					pod, err = s.kubernetesClient.CoreV1().Pods(s.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
 					if err != nil {
-						streamf(w, "Looking up pod: %v.\n", err)
 						return fmt.Errorf("look up pod %s: %v", pod.Name, err)
 					}
 

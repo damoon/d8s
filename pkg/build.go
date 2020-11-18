@@ -223,7 +223,7 @@ func (o ObjectStore) presignContext(cfg *buildConfig) (string, error) {
 		Key:    aws.String(cfg.contextFilePath),
 	})
 
-	url, err := objectRequest.Presign(10 * time.Minute)
+	url, err := objectRequest.Presign(MaxExecutionTime)
 	if err != nil {
 		return "", fmt.Errorf("presign GET %s: %v", cfg.contextFilePath, err)
 	}
@@ -340,7 +340,7 @@ buildctl-daemonless.sh \
 					Name:  "buildkit",
 					Command: []string{
 						"timeout",
-						strconv.Itoa(maxBuildTime),
+						strconv.Itoa(int(MaxExecutionTime / time.Second)),
 					},
 					Args: []string{
 						"sh",

@@ -61,7 +61,7 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 	buildScript := fmt.Sprintf(`
 set -euxo pipefail
 
-skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s
+skopeo copy --retry-times 3 --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s
 `, from, to)
 
 	pod := &corev1.Pod{
@@ -75,7 +75,7 @@ skopeo copy --src-tls-verify=false --dest-tls-verify=false docker://%s docker://
 					Image: skopeoImage,
 					Command: []string{
 						"timeout",
-						strconv.Itoa(maxBuildTime),
+						strconv.Itoa(int(MaxExecutionTime / time.Second)),
 					},
 					Args: []string{
 						"sh",
