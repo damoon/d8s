@@ -7,14 +7,9 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
@@ -37,54 +32,17 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 		escapePort(fmt.Sprintf("%s:%s", args.Get("repo"), tag)),
 	)
 
-	buildScript := fmt.Sprintf(`
-set -euxo pipefail
+	script := fmt.Sprintf(`skopeo copy --retry-times 3 --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s`, from, to)
 
-skopeo copy --retry-times 3 --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s
-`, from, to)
+	scheduler := scheduleLocal
+	// scheduler = s.scheduleInKubernetes
 
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "wedding-tag-",
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:  "skopeo",
-					Image: skopeoImage,
-					Command: []string{
-						"timeout",
-						strconv.Itoa(int(MaxExecutionTime / time.Second)),
-					},
-					Args: []string{
-						"sh",
-						"-c",
-						buildScript,
-					},
-					Resources: corev1.ResourceRequirements{
-						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse(skopeoCPU),
-							corev1.ResourceMemory: resource.MustParse(skopeoMemory),
-						},
-						Requests: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse(skopeoCPU),
-							corev1.ResourceMemory: resource.MustParse(skopeoMemory),
-						},
-					},
-				},
-			},
-			RestartPolicy: corev1.RestartPolicyNever,
-		},
-	}
-
-	b := &bytes.Buffer{}
-	err := s.executePod(r.Context(), pod, b)
+	o := &bytes.Buffer{}
+	err := scheduler(r.Context(), o, "tag", script, "")
 	if err != nil {
-		log.Printf("execute tagging: %v", err)
+		log.Printf("execute tag: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		io.Copy(w, b)
-		w.Write([]byte(fmt.Sprintf("execute tagging: %v", err)))
-		return
+		io.Copy(w, o)
 	}
 
 	w.WriteHeader(http.StatusCreated)

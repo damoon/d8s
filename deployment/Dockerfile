@@ -1,5 +1,11 @@
 # build-env ###################################################
 FROM golang:1.15.5-buster AS build-env
+
+RUN echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10/ /' > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+RUN curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10/Release.key | apt-key add -
+RUN apt-get -y update
+RUN apt-get -y install skopeo
+
 WORKDIR /app
 
 RUN apt-get update
@@ -23,8 +29,9 @@ COPY pkg pkg
 RUN go install -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
 
 ###############################################################
-FROM alpine:3.12.1
-RUN apk --no-cache add ca-certificates
+FROM alpine:3.12.1 AS prod
+RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache -X http://dl-cdn.alpinelinux.org/alpine/edge/community skopeo
 WORKDIR /root/
-COPY --from=build-env /go/bin/wedding .
+COPY --from=build-env /go/bin/wedding /usr/local/bin/wedding
 ENTRYPOINT [ "./wedding", "server" ]
