@@ -309,8 +309,12 @@ func (s Service) executeBuild(ctx context.Context, cfg *buildConfig, w http.Resp
 
 	buildScript := fmt.Sprintf(`
 set -euo pipefail
+unset x
 
-echo download bulid context
+echo download build context
+cd ~
+touch  ~/context
+rm -rf  ~/context
 mkdir ~/context && cd ~/context
 wget -O - "%s" | tar -xf -
 
@@ -345,7 +349,7 @@ buildctl-daemonless.sh \
 					Args: []string{
 						"sh",
 						"-c",
-						buildScript,
+						fmt.Sprintf("(%s) || (%s)", buildScript, buildScript),
 					},
 					VolumeMounts: []corev1.VolumeMount{
 						{
