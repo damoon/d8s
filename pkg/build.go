@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -16,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"golang.org/x/sync/semaphore"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -48,30 +52,14 @@ type ObjectStore struct {
 }
 
 func (s Service) build(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
 	cfg, err := buildParameters(r)
 	if err != nil {
 		printBuildHelpText(w, err)
 		return
 	}
 
-	err = s.objectStore.storeContext(ctx, r.Body, cfg)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
-		log.Printf("execute build: %v", err)
-		return
-	}
-	defer func() {
-		s.objectStore.deleteContext(ctx, cfg)
-	}()
-
-	err = s.executeBuild(ctx, cfg, w)
-	if err != nil {
-		log.Printf("execute build: %v", err)
-		return
-	}
+	//s.buildInKubernetes(w, r, cfg)
+	buildLocally(w, r, cfg)
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
@@ -196,6 +184,27 @@ func printBuildHelpText(w http.ResponseWriter, err error) {
 	_, err = w.Write([]byte(txt))
 	if err != nil {
 		log.Printf("print help text: %v", err)
+	}
+}
+
+func (s Service) buildInKubernetes(w http.ResponseWriter, r *http.Request, cfg *buildConfig) {
+	ctx := r.Context()
+
+	err := s.objectStore.storeContext(ctx, r.Body, cfg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
+		log.Printf("execute build: %v", err)
+		return
+	}
+	defer func() {
+		s.objectStore.deleteContext(ctx, cfg)
+	}()
+
+	err = s.executeBuild(ctx, cfg, w)
+	if err != nil {
+		log.Printf("execute build: %v", err)
+		return
 	}
 }
 
@@ -408,6 +417,139 @@ buildctl-daemonless.sh \
 	err = d.publish(w)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func buildLocally(w http.ResponseWriter, r *http.Request, cfg *buildConfig) {
+	err := buildLocallyError(w, r, cfg)
+	if err != nil {
+		log.Printf("execute build: %v", err)
+	}
+}
+
+var sem = semaphore.NewWeighted(1)
+
+func buildLocallyError(w http.ResponseWriter, r *http.Request, cfg *buildConfig) error {
+	err := sem.Acquire(r.Context(), 1)
+	if err != nil {
+		return fmt.Errorf("acquire build semaphore: %v", err)
+	}
+	defer sem.Release(1)
+
+	o := &output{w: w}
+	d := &digestParser{w: o}
+
+	defer os.RemoveAll("/root/context")
+
+	script := `
+set -euo pipefail
+mkdir /root/context
+cd /root/context
+tar -xf -
+`
+	cmd := exec.CommandContext(
+		r.Context(),
+		"timeout",
+		strconv.Itoa(int(MaxExecutionTime/time.Second)),
+		"bash",
+		"-c",
+		script,
+	)
+	cmd.Stdout = w
+	cmd.Stderr = w
+	cmd.Stdin = r.Body
+
+	err = cmd.Run()
+	if err != nil {
+		o.Errorf("extract context: %v", err)
+		return fmt.Errorf("extract context: %v", err)
+	}
+
+	err = os.MkdirAll("/root/.docker/", os.ModePerm)
+	if err != nil {
+		o.Errorf("prepare docker config directory: %v", err)
+		return fmt.Errorf("prepare docker config directory: %v", err)
+	}
+
+	err = ioutil.WriteFile("/root/.docker/config.json", []byte(cfg.registryAuth.mustToJSON()), os.ModePerm)
+	if err != nil {
+		o.Errorf("write docker auth config: %v", err)
+		return fmt.Errorf("write docker auth config: %v", err)
+	}
+	defer os.Remove("/root/.docker/config.json")
+
+	imageNames := ""
+	for idx, tag := range cfg.tags {
+		if idx != 0 {
+			imageNames += ","
+		}
+		imageNames += fmt.Sprintf("wedding-registry:5000/images/%s", tag)
+	}
+
+	destination := "--output type=image,push=true,name=wedding-registry:5000/digests"
+	if imageNames != "" {
+		destination = fmt.Sprintf(`--output type=image,push=true,\"name=%s\"`, imageNames)
+	}
+
+	dockerfileName := filepath.Base(cfg.dockerfile)
+	dockerfileDir := filepath.Dir(cfg.dockerfile)
+
+	target := ""
+	if cfg.target != "" {
+		target = fmt.Sprintf("--opt target=%s", cfg.target)
+	}
+
+	buildargs := ""
+	for k, v := range cfg.buildArgs {
+		buildargs += fmt.Sprintf("--opt build-arg:%s='%s' ", k, v)
+	}
+
+	labels := ""
+	for k, v := range cfg.labels {
+		buildargs += fmt.Sprintf("--opt label:%s='%s' ", k, v)
+	}
+
+	script = fmt.Sprintf(`
+set -exuo pipefail
+cd /root/context
+buildctl \
+--addr tcp://127.0.0.1:1234 \
+ build \
+ --frontend dockerfile.v0 \
+ --local context=. \
+ --local dockerfile=%s \
+ --opt filename=%s \
+ %s \
+ %s \
+ %s \
+ %s \
+ --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
+ --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
+`, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
+
+	cmd = exec.CommandContext(
+		r.Context(),
+		"timeout",
+		strconv.Itoa(int(MaxExecutionTime/time.Second)),
+		"bash",
+		"-c",
+		script,
+	)
+	cmd.Stdout = d
+	cmd.Stderr = d
+
+	err = cmd.Run()
+	if err != nil {
+		o.Errorf("execute build: %v", err)
+		return fmt.Errorf("execute build: %v", err)
+	}
+
+	err = d.publish(w)
+	if err != nil {
+		o.Errorf("publish ID: %v", err)
+		return fmt.Errorf("publish ID: %v", err)
 	}
 
 	return nil

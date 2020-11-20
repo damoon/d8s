@@ -1,10 +1,17 @@
+###############################################################
+FROM moby/buildkit:v0.7.2-rootless AS buildkit
+
 # build-env ###################################################
 FROM golang:1.15.5-buster AS build-env
 
+# skopeo
 RUN echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10/ /' > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
 RUN curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10/Release.key | apt-key add -
 RUN apt-get -y update
 RUN apt-get -y install skopeo
+
+# buildctl
+COPY --from=buildkit /usr/bin/buildctl /usr/local/bin/buildctl
 
 WORKDIR /app
 
@@ -30,8 +37,14 @@ RUN go install -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURC
 
 ###############################################################
 FROM alpine:3.12.1 AS prod
-RUN apk add --no-cache ca-certificates
+
+# skopeo
 RUN apk add --no-cache -X http://dl-cdn.alpinelinux.org/alpine/edge/community skopeo
+
+# buildctl
+COPY --from=buildkit /usr/bin/buildctl /usr/local/bin/buildctl
+
+RUN apk add --no-cache ca-certificates
 WORKDIR /root/
 COPY --from=build-env /go/bin/wedding /usr/local/bin/wedding
-ENTRYPOINT [ "./wedding", "server" ]
+ENTRYPOINT [ "wedding", "server" ]

@@ -48,10 +48,22 @@ spec:
             - name: minio
               mountPath: "/secret/minio"
               readOnly: true
+        - name: buildkit
+          image: moby/buildkit:v0.7.2-rootless
+          args:
+            - --addr=tcp://127.0.0.1:1234
+            - --oci-worker-no-process-sandbox
+          volumeMounts:
+            - name: buildkitd-config
+              mountPath: "/home/user/.config/buildkit"
+              readOnly: true
       volumes:
         - name: minio
           secret:
             secretName: minio
+        - name: buildkitd-config
+          configMap:
+            name: buildkitd-config
 ---
 apiVersion: v1
 kind: ServiceAccount
