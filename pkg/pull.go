@@ -66,8 +66,6 @@ func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 	o := &output{w: w}
 	err = scheduler(r.Context(), o, "pull", script, dockerCfg.mustToJSON())
 	if err != nil {
-		log.Printf("execute pull: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 		o.Errorf("execute pull: %v", err)
 	}
 }

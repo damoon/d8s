@@ -43,9 +43,11 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 		log.Printf("execute tag: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		io.Copy(w, o)
+		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+	io.Copy(w, o)
 }
 
 func escapePort(in string) string {

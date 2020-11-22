@@ -32,8 +32,6 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 	o := &output{w: w}
 	err = scheduler(r.Context(), o, "push", script, dockerCfg.mustToJSON())
 	if err != nil {
-		log.Printf("execute push: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 		o.Errorf("execute push: %v", err)
 	}
 }

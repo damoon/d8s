@@ -58,7 +58,7 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//s.buildInKubernetes(w, r, cfg)
+	// s.buildInKubernetes(w, r, cfg)
 	buildLocally(w, r, cfg)
 }
 
@@ -423,23 +423,30 @@ buildctl-daemonless.sh \
 }
 
 func buildLocally(w http.ResponseWriter, r *http.Request, cfg *buildConfig) {
-	err := buildLocallyError(w, r, cfg)
+	o := &output{w: w}
+	d := &digestParser{w: o}
+
+	err := buildLocallyError(r.Context(), d, r.Body, cfg)
 	if err != nil {
-		log.Printf("execute build: %v", err)
+		o.Errorf("execute build: %v", err)
+		return
+	}
+
+	err = d.publish(w)
+	if err != nil {
+		o.Errorf("publish ID: %v", err)
+		return
 	}
 }
 
 var sem = semaphore.NewWeighted(1)
 
-func buildLocallyError(w http.ResponseWriter, r *http.Request, cfg *buildConfig) error {
-	err := sem.Acquire(r.Context(), 1)
+func buildLocallyError(ctx context.Context, w io.Writer, r io.Reader, cfg *buildConfig) error {
+	err := sem.Acquire(ctx, 1)
 	if err != nil {
 		return fmt.Errorf("acquire build semaphore: %v", err)
 	}
 	defer sem.Release(1)
-
-	o := &output{w: w}
-	d := &digestParser{w: o}
 
 	defer os.RemoveAll("/root/context")
 
@@ -450,7 +457,7 @@ cd /root/context
 tar -xf -
 `
 	cmd := exec.CommandContext(
-		r.Context(),
+		ctx,
 		"timeout",
 		strconv.Itoa(int(MaxExecutionTime/time.Second)),
 		"bash",
@@ -459,23 +466,20 @@ tar -xf -
 	)
 	cmd.Stdout = w
 	cmd.Stderr = w
-	cmd.Stdin = r.Body
+	cmd.Stdin = r
 
 	err = cmd.Run()
 	if err != nil {
-		o.Errorf("extract context: %v", err)
 		return fmt.Errorf("extract context: %v", err)
 	}
 
 	err = os.MkdirAll("/root/.docker/", os.ModePerm)
 	if err != nil {
-		o.Errorf("prepare docker config directory: %v", err)
 		return fmt.Errorf("prepare docker config directory: %v", err)
 	}
 
 	err = ioutil.WriteFile("/root/.docker/config.json", []byte(cfg.registryAuth.mustToJSON()), os.ModePerm)
 	if err != nil {
-		o.Errorf("write docker auth config: %v", err)
 		return fmt.Errorf("write docker auth config: %v", err)
 	}
 	defer os.Remove("/root/.docker/config.json")
@@ -530,26 +534,19 @@ buildctl \
 `, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
 
 	cmd = exec.CommandContext(
-		r.Context(),
+		ctx,
 		"timeout",
 		strconv.Itoa(int(MaxExecutionTime/time.Second)),
 		"bash",
 		"-c",
 		script,
 	)
-	cmd.Stdout = d
-	cmd.Stderr = d
+	cmd.Stdout = w
+	cmd.Stderr = w
 
 	err = cmd.Run()
 	if err != nil {
-		o.Errorf("execute build: %v", err)
 		return fmt.Errorf("execute build: %v", err)
-	}
-
-	err = d.publish(w)
-	if err != nil {
-		o.Errorf("publish ID: %v", err)
-		return fmt.Errorf("publish ID: %v", err)
 	}
 
 	return nil

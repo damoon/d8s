@@ -23,15 +23,16 @@ skopeo inspect dir://%s
 rm -r %s
 `, randomID, image, randomID, randomID, randomID)
 
-	o := &bytes.Buffer{}
-
 	scheduler := scheduleLocal
 	// scheduler = s.scheduleInKubernetes
 
+	o := &bytes.Buffer{}
 	err := scheduler(r.Context(), o, "inspect", script, "")
 	if err != nil {
 		log.Printf("execute inspect: %v", err)
 		w.WriteHeader(http.StatusNotFound)
+		io.Copy(w, o)
+		return
 	}
 
 	io.Copy(w, o)
