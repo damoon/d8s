@@ -2,11 +2,13 @@ package wedding
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -23,11 +25,21 @@ skopeo inspect dir://%s
 rm -r %s
 `, randomID, image, randomID, randomID, randomID)
 
-	scheduler := scheduleLocal
-	// scheduler = s.scheduleInKubernetes
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	scheduler := s.scheduleInKubernetes
+	err := semSkopeo.Acquire(ctx, 1)
+	if err == nil {
+		log.Printf("inspect locally %s", vars["name"])
+		defer semSkopeo.Release(1)
+		scheduler = scheduleLocal
+	} else {
+		log.Printf("inspect scheduled %s", vars["name"])
+	}
 
 	o := &bytes.Buffer{}
-	err := scheduler(r.Context(), o, "inspect", script, "")
+	err = scheduler(r.Context(), o, "inspect", script, "")
 	if err != nil {
 		log.Printf("execute inspect: %v", err)
 		w.WriteHeader(http.StatusNotFound)

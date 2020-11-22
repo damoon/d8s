@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -21,7 +20,6 @@ func (o output) Write(b []byte) (int, error) {
 	}
 
 	msg := fmt.Sprintf(`{"stream": %s}`, b)
-	log.Printf("msg: %v", msg)
 
 	_, err = o.w.Write([]byte(msg))
 	if err != nil {
@@ -46,8 +44,6 @@ func (o output) Error(e string) error {
 	if err != nil {
 		return err
 	}
-
-	log.Printf("error: %s", b)
 
 	msg := fmt.Sprintf(`{"error": %s, "errorDetail": {"code": %d, "message": %s}}`, b, 1, b)
 

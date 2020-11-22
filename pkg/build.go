@@ -19,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"golang.org/x/sync/semaphore"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -58,8 +57,20 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// s.buildInKubernetes(w, r, cfg)
-	buildLocally(w, r, cfg)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	scheduler := s.buildInKubernetes
+	err = semBuild.Acquire(ctx, 1)
+	if err == nil {
+		log.Printf("build locally %v", cfg.tags)
+		defer semBuild.Release(1)
+		scheduler = buildLocally
+	} else {
+		log.Printf("build scheduled %v", cfg.tags)
+	}
+
+	scheduler(w, r, cfg)
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
@@ -410,6 +421,7 @@ buildctl-daemonless.sh \
 	d := &digestParser{w: o}
 	err = s.executePod(ctx, pod, d)
 	if err != nil {
+		log.Printf("execute build: %v", err)
 		o.Errorf("execute build: %v", err)
 		return err
 	}
@@ -428,26 +440,20 @@ func buildLocally(w http.ResponseWriter, r *http.Request, cfg *buildConfig) {
 
 	err := buildLocallyError(r.Context(), d, r.Body, cfg)
 	if err != nil {
+		log.Printf("execute build: %v", err)
 		o.Errorf("execute build: %v", err)
 		return
 	}
 
 	err = d.publish(w)
 	if err != nil {
+		log.Printf("publish ID: %v", err)
 		o.Errorf("publish ID: %v", err)
 		return
 	}
 }
 
-var sem = semaphore.NewWeighted(1)
-
 func buildLocallyError(ctx context.Context, w io.Writer, r io.Reader, cfg *buildConfig) error {
-	err := sem.Acquire(ctx, 1)
-	if err != nil {
-		return fmt.Errorf("acquire build semaphore: %v", err)
-	}
-	defer sem.Release(1)
-
 	defer os.RemoveAll("/root/context")
 
 	script := `
@@ -468,7 +474,7 @@ tar -xf -
 	cmd.Stderr = w
 	cmd.Stdin = r
 
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("extract context: %v", err)
 	}

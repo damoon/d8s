@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/sync/semaphore"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -22,6 +23,11 @@ const (
 	buildCPUPeriod = 100_000      // 100ms is the default of docker
 	skopeoMemory   = "100Mi"
 	skopeoCPU      = "200m"
+)
+
+var (
+	semBuild  = semaphore.NewWeighted(1)
+	semSkopeo = semaphore.NewWeighted(5)
 )
 
 // Service runs the wedding server.
@@ -61,6 +67,7 @@ func (s *Service) routes(gitHash, gitRef string) {
 	router.HandleFunc("/{apiVersion}/images/{name:.+}/push", s.pushImage).Methods(http.MethodPost)
 	router.HandleFunc("/{apiVersion}/images/{name:.+}/json", s.inspect).Methods(http.MethodGet)
 	router.HandleFunc("/{apiVersion}/images/create", s.pullImage).Methods(http.MethodPost)
+	router.HandleFunc("/{apiVersion}/containers/{name:.+}/json", missing).Methods(http.MethodGet)
 
 	router.HandleFunc("/{apiVersion}/containers/prune", containersPrune).Methods(http.MethodPost)
 	router.HandleFunc("/{apiVersion}/images/json", imagesJSON).Methods(http.MethodGet)
@@ -78,7 +85,7 @@ func (s *Service) routes(gitHash, gitRef string) {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.Header.Get("User-Agent"), "kube-probe/") {
-			log.Printf("HTTP Request %s %s\n", r.Method, r.URL)
+			//	log.Printf("HTTP Request %s %s\n", r.Method, r.URL)
 		}
 
 		next.ServeHTTP(w, r)
@@ -87,4 +94,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func ignored(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func missing(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
 }
