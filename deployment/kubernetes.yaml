@@ -48,6 +48,13 @@ spec:
             - name: minio
               mountPath: "/secret/minio"
               readOnly: true
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "100m"
+            limits:
+              memory: "200Mi"
+              cpu: "200m"
         - name: buildkit
           image: moby/buildkit:v0.7.2-rootless
           args:
@@ -57,6 +64,13 @@ spec:
             - name: buildkitd-config
               mountPath: "/home/user/.config/buildkit"
               readOnly: true
+          resources:
+            requests:
+              memory: "2148Mi"
+              cpu: "500m"
+            limits:
+              memory: "2148Mi"
+              cpu: "1000m"
       volumes:
         - name: minio
           secret:

@@ -359,6 +359,8 @@ buildctl-daemonless.sh \
  --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
 `, presignedContextURL, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
 
+	buildkitdMemory := 100 * 1024 * 1024
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "wedding-build-",
@@ -390,11 +392,11 @@ buildctl-daemonless.sh \
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cfg.cpuMilliseconds)),
-							corev1.ResourceMemory: resource.MustParse(strconv.Itoa(cfg.memoryBytes)),
+							corev1.ResourceMemory: resource.MustParse(strconv.Itoa(cfg.memoryBytes + buildkitdMemory)),
 						},
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", cfg.cpuMilliseconds)),
-							corev1.ResourceMemory: resource.MustParse(strconv.Itoa(cfg.memoryBytes)),
+							corev1.ResourceMemory: resource.MustParse(strconv.Itoa(cfg.memoryBytes + buildkitdMemory)),
 						},
 					},
 				},
