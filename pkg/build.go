@@ -57,20 +57,26 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
 	scheduler := s.buildInKubernetes
-	err = semBuild.Acquire(ctx, 1)
-	if err == nil {
-		log.Printf("build locally %v", cfg.tags)
-		defer semBuild.Release(1)
-		scheduler = buildLocally
-	} else {
-		log.Printf("build scheduled %v", cfg.tags)
+	if cfg.fitsLocally() {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		err = semBuild.Acquire(ctx, 1)
+		if err == nil {
+			log.Printf("build locally %v", cfg.tags)
+			defer semBuild.Release(1)
+			scheduler = buildLocally
+		} else {
+			log.Printf("build scheduled %v", cfg.tags)
+		}
 	}
 
 	scheduler(w, r, cfg)
+}
+
+func (c buildConfig) fitsLocally() bool {
+	return c.cpuMilliseconds <= 1000 && c.memoryBytes <= 1024*1024*1024*2
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
