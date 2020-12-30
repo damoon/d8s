@@ -29,11 +29,11 @@ spec:
         - name: wedding
           image: davedamoon/wedding:latest
           args:
-            - --s3-endpoint=minio:9000
+            - --s3-endpoint=wedding-minio:9000
             - --s3-access-key-file=/secret/minio/MINIO_ACCESS_KEY
             - --s3-secret-key-file=/secret/minio/MINIO_SECRET_KEY
             - --s3-ssl=false
-            - --s3-bucket=wedding
+            - --s3-bucket=contexts
           env:
             - name: KEEP_FAILED_PODS
               value: "yes"
@@ -74,7 +74,7 @@ spec:
       volumes:
         - name: minio
           secret:
-            secretName: minio
+            secretName: wedding-minio
         - name: buildkitd-config
           configMap:
             name: buildkitd-config

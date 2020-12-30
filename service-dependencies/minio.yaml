@@ -1,49 +1,49 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: minio
+  name: wedding-minio
 spec:
   ports:
     - name: minio
       port: 9000
   selector:
-    app: minio
+    app: wedding-minio
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: minio
+  name: wedding-minio
 spec:
   selector:
     matchLabels:
-        app: minio
+      app: wedding-minio
   strategy:
     type: Recreate
   replicas: 1
   template:
     metadata:
       labels:
-        app: minio
+        app: wedding-minio
     spec:
       containers:
         - name: minio
-          image: minio/minio:RELEASE.2020-05-16T01-33-21Z
+          image: minio/minio:RELEASE.2020-12-29T23-29-29Z
           args:
             - server
             - /home/shared
           envFrom:
             - secretRef:
-                name: minio
+                name: wedding-minio
           ports:
             - name: http
               containerPort: 9000
           resources:
             limits:
-              cpu: "100m"
-              memory: "500Mi"
+              cpu: "1000m"
+              memory: "1Gi"
             requests:
               cpu: "100m"
-              memory: "500Mi"
+              memory: "1Gi"
           readinessProbe:
             httpGet:
               path: /minio/health/live
@@ -61,12 +61,12 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: minio
+            claimName: wedding-minio
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: minio
+  name: wedding-minio
 type: Opaque
 stringData:
   MINIO_ACCESS_KEY: minio123
@@ -75,10 +75,48 @@ stringData:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: minio
+  name: wedding-minio
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: setup-minio-buckets
+spec:
+  backoffLimit: 20
+  template:
+    metadata:
+      name: setup-minio-bucket
+    spec:
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2020-12-18T10-53-53Z
+          command:
+            - sh
+            - -c
+            - |
+              set -euxo pipefail
+              mc config host add minio http://wedding-minio:9000 $(cat /secret/minio/MINIO_ACCESS_KEY) $(cat /secret/minio/MINIO_SECRET_KEY)
+              mc mb minio/contexts --ignore-existing
+              mc mb minio/registry --ignore-existing
+          resources:
+            limits:
+              cpu: 20m
+              memory: 100Mi
+            requests:
+              cpu: 20m
+              memory: 100Mi
+          volumeMounts:
+            - name: minio
+              mountPath: "/secret/minio"
+              readOnly: true
+      volumes:
+        - name: minio
+          secret:
+            secretName: wedding-minio
+      restartPolicy: OnFailure

@@ -1,15 +1,18 @@
 k8s_yaml('minio.yaml')
-k8s_resource('minio', port_forwards=9000)
-
-k8s_yaml('minio-setup.yaml')
 k8s_resource(
-  'setup-s3-bucket',
+  'wedding-minio',
+  new_name='minio',
+  port_forwards=9000,
+)
+k8s_resource(
+  'setup-minio-buckets',
+  new_name='minio-buckets',
   resource_deps=['minio'],
 )
-k8s_resource(
-  'delete-old-files',
-  resource_deps=['setup-s3-bucket'],
-)
 
-k8s_yaml('wedding-registry.yaml')
-k8s_resource('wedding-registry', port_forwards=5000)
+k8s_yaml('registry.yaml')
+k8s_resource(
+  'wedding-registry',
+  new_name='registry',
+  port_forwards=5000,
+)
