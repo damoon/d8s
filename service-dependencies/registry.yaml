@@ -38,10 +38,14 @@ spec:
             requests:
               cpu: "100m"
               memory: "500Mi"
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
           readinessProbe:
             httpGet:
-              path: /debug/health
-              port: 5001
+              path: /v2/_catalog
+              port: 5000
           lifecycle:
             preStop:
               exec:
@@ -140,10 +144,3 @@ data:
       addr: :5000
       headers:
         X-Content-Type-Options: [nosniff]
-      debug:
-        addr: :5001
-    health:
-      storagedriver:
-        enabled: true
-        interval: 10s
-        threshold: 3

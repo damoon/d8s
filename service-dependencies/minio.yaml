@@ -44,9 +44,13 @@ spec:
             requests:
               cpu: "100m"
               memory: "1Gi"
-          readinessProbe:
+          livenessProbe:
             httpGet:
               path: /minio/health/live
+              port: 9000
+          readinessProbe:
+            httpGet:
+              path: /minio/health/cluster
               port: 9000
           lifecycle:
             preStop:
@@ -54,7 +58,7 @@ spec:
                 command:
                   - sh
                   - -c
-                  - "sleep 10"
+                  - until [[ $(curl --silent --fail --max-time 5 --write-out "%{http_code}" http://127.0.0.1:9000/minio/health/cluster\?maintenance\=true) = "200" ]]; do sleep 1; done
           volumeMounts:
             - name: data
               mountPath: /home/shared
@@ -102,6 +106,7 @@ spec:
             - |
               set -euxo pipefail
               mc config host add minio http://wedding-minio:9000 $(cat /secret/minio/MINIO_ACCESS_KEY) $(cat /secret/minio/MINIO_SECRET_KEY)
+              until timeout 10 mc admin info minio; do sleep 1; done
               mc mb minio/contexts --ignore-existing
               mc mb minio/registry --ignore-existing
           resources:

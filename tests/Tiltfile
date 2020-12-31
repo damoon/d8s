@@ -1,34 +1,34 @@
 
 local_resource ('test build',
-  'timeout 60 bash docker-build.sh',
+  'timeout 120 bash docker-build.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
 )
 
 local_resource ('test pull tag push',
-  'timeout 100 bash docker-pull-tag-push.sh',
+  'timeout 200 bash docker-pull-tag-push.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
 )
 
 local_resource ('test inspect',
-  'timeout 100 bash docker-inspect.sh',
+  'timeout 200 bash docker-inspect.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
 )
 
 local_resource ('test max memory',
-  'timeout 60 bash docker-max-memory.sh',
+  'timeout 120 bash docker-max-memory.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
 )
 
 local_resource ('test tilt ci',
-  'timeout 170 bash tilt-ci.sh',
+  'timeout 360 bash tilt-ci.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
