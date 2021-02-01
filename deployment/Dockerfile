@@ -36,7 +36,7 @@ COPY pkg pkg
 RUN go install -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
 
 ###############################################################
-FROM alpine:3.12.1 AS prod
+FROM alpine:3.13.1 AS prod
 
 # skopeo
 RUN apk add --no-cache -X http://dl-cdn.alpinelinux.org/alpine/edge/community skopeo
