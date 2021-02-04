@@ -50,7 +50,7 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	o := &bytes.Buffer{}
-	err = scheduler(r.Context(), o, "tag", script+" || "+script, "")
+	err = scheduler(r.Context(), o, "tag", script, "")
 	if err != nil {
 		log.Printf("execute tag: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

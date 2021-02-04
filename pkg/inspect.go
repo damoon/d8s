@@ -20,11 +20,10 @@ func (s Service) inspect(w http.ResponseWriter, r *http.Request) {
 	script := fmt.Sprintf(`
 set -euo pipefail
 mkdir %s
-skopeo copy --quiet --retry-times 3 --src-tls-verify=false docker://%s dir://%s || \
-	skopeo copy --quiet --retry-times 3 --src-tls-verify=false docker://%s dir://%s
+skopeo copy --quiet --retry-times 3 --src-tls-verify=false docker://%s dir://%s
 skopeo inspect dir://%s
 rm -r %s
-`, randomID, image, randomID, image, randomID, randomID, randomID)
+`, randomID, image, randomID, randomID, randomID)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()

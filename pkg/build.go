@@ -168,7 +168,7 @@ func buildParameters(r *http.Request) (*buildConfig, error) {
 	// memory limit
 	memoryArg := r.URL.Query().Get("memory")
 	if memoryArg == "" || memoryArg == "0" {
-		memoryArg = "2147483648" // 2Gi default
+		memoryArg = buildMemory
 	}
 	memory, err := strconv.Atoi(memoryArg)
 	if err != nil {
@@ -368,17 +368,10 @@ buildctl-daemonless.sh \
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Image: buildkitImage,
-					Name:  "buildkit",
-					Command: []string{
-						"timeout",
-						strconv.Itoa(int(MaxExecutionTime / time.Second)),
-					},
-					Args: []string{
-						"sh",
-						"-c",
-						fmt.Sprintf("(%s) || (%s)", buildScript, buildScript),
-					},
+					Image:   buildkitImage,
+					Name:    "buildkit",
+					Command: []string{"timeout", strconv.Itoa(int(MaxExecutionTime / time.Second))},
+					Args:    []string{"sh", "-c", buildScript},
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							MountPath: "/home/user/.docker",
