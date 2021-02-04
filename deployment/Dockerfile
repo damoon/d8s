@@ -1,5 +1,5 @@
 ###############################################################
-FROM moby/buildkit:v0.7.2-rootless AS buildkit
+FROM moby/buildkit:v0.8.1-rootless AS buildkit
 
 # build-env ###################################################
 FROM golang:1.15.5-buster AS build-env

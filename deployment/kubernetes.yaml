@@ -56,7 +56,7 @@ spec:
               memory: "200Mi"
               cpu: "200m"
         - name: buildkit
-          image: moby/buildkit:v0.7.2-rootless
+          image: moby/buildkit:v0.8.1-rootless
           args:
             - --addr=tcp://127.0.0.1:1234
             - --oci-worker-no-process-sandbox

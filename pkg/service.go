@@ -16,7 +16,7 @@ const (
 	MaxExecutionTime = 30 * time.Minute
 
 	apiVersion     = "1.40"
-	buildkitImage  = "moby/buildkit:v0.7.2-rootless"
+	buildkitImage  = "moby/buildkit:v0.8.1-rootless"
 	skopeoImage    = "mrliptontea/skopeo:1.2.0"
 	buildMemory    = "2147483648" // 2Gi default
 	buildCPUQuota  = 100_000      // results in 1 cpu
