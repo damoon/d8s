@@ -2,7 +2,7 @@
 FROM moby/buildkit:v0.8.3-rootless AS buildkit
 
 # build-env ###################################################
-FROM golang:1.15.7-buster AS build-env
+FROM golang:1.16.4-buster AS build-env
 
 # skopeo
 RUN echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_10/ /' > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
