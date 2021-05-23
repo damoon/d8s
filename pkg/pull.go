@@ -61,7 +61,7 @@ func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 	script := fmt.Sprintf(`skopeo copy --retry-times 3 --dest-tls-verify=false docker://%s docker://%s`, from, to)
 
 	o := &output{w: w}
-	err = s.scheduleInKubernetes(r.Context(), o, "pull", script, dockerCfg.mustToJSON())
+	err = s.runSkopeoPod(r.Context(), o, "pull", script, dockerCfg.mustToJSON())
 	if err != nil {
 		log.Printf("execute pull: %v", err)
 		o.Errorf("execute pull: %v", err)

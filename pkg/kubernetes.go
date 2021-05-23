@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s Service) scheduleInKubernetes(ctx context.Context, w io.Writer, processName, script, dockerJSON string) error {
+func (s Service) runSkopeoPod(ctx context.Context, w io.Writer, processName, script, dockerJSON string) error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("wedding-%s-", processName),

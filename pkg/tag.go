@@ -35,7 +35,7 @@ func (s Service) tagImage(w http.ResponseWriter, r *http.Request) {
 	script := fmt.Sprintf(`skopeo copy --retry-times 3 --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s`, from, to)
 
 	o := &bytes.Buffer{}
-	err := s.scheduleInKubernetes(r.Context(), o, "tag", script, "")
+	err := s.runSkopeoPod(r.Context(), o, "tag", script, "")
 	if err != nil {
 		log.Printf("execute tag: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

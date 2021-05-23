@@ -24,7 +24,7 @@ rm -r %s
 `, randomID, image, randomID, randomID, randomID)
 
 	o := &bytes.Buffer{}
-	err := s.scheduleInKubernetes(r.Context(), o, "inspect", script, "")
+	err := s.runSkopeoPod(r.Context(), o, "inspect", script, "")
 	if err != nil {
 		log.Printf("execute inspect: %v", err)
 		w.WriteHeader(http.StatusNotFound)

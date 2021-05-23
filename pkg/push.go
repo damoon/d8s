@@ -27,7 +27,7 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 	script := fmt.Sprintf(`skopeo copy --retry-times 3 --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s`, from, to)
 
 	o := &output{w: w}
-	err = s.scheduleInKubernetes(r.Context(), o, "push", script, dockerCfg.mustToJSON())
+	err = s.runSkopeoPod(r.Context(), o, "push", script, dockerCfg.mustToJSON())
 	if err != nil {
 		log.Printf("execute push: %v", err)
 		o.Errorf("execute push: %v", err)
