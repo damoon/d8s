@@ -109,6 +109,7 @@ spec:
               until timeout 10 mc admin info minio; do sleep 1; done
               mc mb minio/contexts --ignore-existing
               mc mb minio/registry --ignore-existing
+              mc mb minio/docker-hub-mirror --ignore-existing
           resources:
             limits:
               cpu: 20m

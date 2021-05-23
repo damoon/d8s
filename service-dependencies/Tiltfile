@@ -16,3 +16,10 @@ k8s_resource(
   new_name='registry',
   port_forwards=5000,
 )
+
+k8s_yaml('docker-hub-mirror.yaml')
+k8s_resource(
+  'wedding-docker-hub-mirror',
+  new_name='docker-hub-mirror',
+  port_forwards=5001,
+)

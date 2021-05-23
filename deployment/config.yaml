@@ -10,7 +10,11 @@ data:
       noProcessSandbox = true
 
     [registry."docker.io"]
-      mirrors = ["mirror.gcr.io"]
+      mirrors = ["wedding-docker-hub-mirror:5000"]
+
+    [registry."wedding-docker-hub-mirror:5000"]
+      http = true
+      insecure = true
 
     [registry."wedding-registry:5000"]
       http = true
