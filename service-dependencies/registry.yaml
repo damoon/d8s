@@ -42,7 +42,7 @@ spec:
               port: 5000
           readinessProbe:
             httpGet:
-              path: /v2/_catalog
+              path: /v2/_catalog?n=1
               port: 5000
           lifecycle:
             preStop:
