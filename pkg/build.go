@@ -6,11 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -57,26 +54,7 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scheduler := s.buildInKubernetes
-	if cfg.fitsLocally() {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		err = semBuild.Acquire(ctx, 1)
-		if err == nil {
-			log.Printf("build locally %v", cfg.tags)
-			defer semBuild.Release(1)
-			scheduler = buildLocally
-		} else {
-			log.Printf("build scheduled %v", cfg.tags)
-		}
-	}
-
-	scheduler(w, r, cfg)
-}
-
-func (c buildConfig) fitsLocally() bool {
-	return c.cpuMilliseconds <= 1000 && c.memoryBytes <= 1024*1024*1024*2
+	s.buildInKubernetes(w, r, cfg)
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
@@ -430,130 +408,6 @@ buildctl-daemonless.sh \
 	err = d.publish(w)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func buildLocally(w http.ResponseWriter, r *http.Request, cfg *buildConfig) {
-	o := &output{w: w}
-	d := &digestParser{w: o}
-
-	err := buildLocallyError(r.Context(), d, r.Body, cfg)
-	if err != nil {
-		log.Printf("execute build: %v", err)
-		o.Errorf("execute build: %v", err)
-		return
-	}
-
-	err = d.publish(w)
-	if err != nil {
-		log.Printf("publish ID: %v", err)
-		o.Errorf("publish ID: %v", err)
-		return
-	}
-}
-
-func buildLocallyError(ctx context.Context, w io.Writer, r io.Reader, cfg *buildConfig) error {
-	defer os.RemoveAll("/root/context")
-
-	script := `
-set -euo pipefail
-mkdir /root/context
-cd /root/context
-tar -xf -
-`
-	cmd := exec.CommandContext(
-		ctx,
-		"timeout",
-		strconv.Itoa(int(MaxExecutionTime/time.Second)),
-		"bash",
-		"-c",
-		script,
-	)
-	cmd.Stdout = w
-	cmd.Stderr = w
-	cmd.Stdin = r
-
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("extract context: %v", err)
-	}
-
-	err = os.MkdirAll("/root/.docker/", os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("prepare docker config directory: %v", err)
-	}
-
-	err = ioutil.WriteFile("/root/.docker/config.json", []byte(cfg.registryAuth.mustToJSON()), os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("write docker auth config: %v", err)
-	}
-	defer os.Remove("/root/.docker/config.json")
-
-	imageNames := ""
-	for idx, tag := range cfg.tags {
-		if idx != 0 {
-			imageNames += ","
-		}
-		imageNames += fmt.Sprintf("wedding-registry:5000/images/%s", tag)
-	}
-
-	destination := "--output type=image,push=true,name=wedding-registry:5000/digests"
-	if imageNames != "" {
-		destination = fmt.Sprintf(`--output type=image,push=true,\"name=%s\"`, imageNames)
-	}
-
-	dockerfileName := filepath.Base(cfg.dockerfile)
-	dockerfileDir := filepath.Dir(cfg.dockerfile)
-
-	target := ""
-	if cfg.target != "" {
-		target = fmt.Sprintf("--opt target=%s", cfg.target)
-	}
-
-	buildargs := ""
-	for k, v := range cfg.buildArgs {
-		buildargs += fmt.Sprintf("--opt build-arg:%s='%s' ", k, v)
-	}
-
-	labels := ""
-	for k, v := range cfg.labels {
-		buildargs += fmt.Sprintf("--opt label:%s='%s' ", k, v)
-	}
-
-	script = fmt.Sprintf(`
-set -exuo pipefail
-cd /root/context
-buildctl \
---addr tcp://127.0.0.1:1234 \
- build \
- --frontend dockerfile.v0 \
- --local context=. \
- --local dockerfile=%s \
- --opt filename=%s \
- %s \
- %s \
- %s \
- %s \
- --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
- --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
-`, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
-
-	cmd = exec.CommandContext(
-		ctx,
-		"timeout",
-		strconv.Itoa(int(MaxExecutionTime/time.Second)),
-		"bash",
-		"-c",
-		script,
-	)
-	cmd.Stdout = w
-	cmd.Stderr = w
-
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("execute build: %v", err)
 	}
 
 	return nil

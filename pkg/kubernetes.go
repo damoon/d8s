@@ -5,11 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -17,41 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func scheduleLocal(ctx context.Context, w io.Writer, processName, script, dockerJSON string) error {
-	tmpHome, err := ioutil.TempDir("", "docker-secret")
-	if err != nil {
-		return fmt.Errorf("create tempdir for docker secret: %v", err)
-	}
-	defer os.RemoveAll(tmpHome)
-
-	if dockerJSON != "" {
-		err = os.Mkdir(filepath.Join(tmpHome, ".docker"), os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("create .docker directory for docker secret: %v", err)
-		}
-
-		dockerConfigJSON := filepath.Join(tmpHome, ".docker", "config.json")
-		err = ioutil.WriteFile(dockerConfigJSON, []byte(dockerJSON), os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("write docker secret: %v", err)
-		}
-	}
-
-	cmd := exec.CommandContext(
-		ctx,
-		"timeout",
-		strconv.Itoa(int(MaxExecutionTime/time.Second)),
-		"bash",
-		"-c",
-		script,
-	)
-	cmd.Stdout = w
-	cmd.Stderr = w
-	cmd.Env = append(cmd.Env, fmt.Sprintf("HOME=%s", tmpHome))
-
-	return cmd.Run()
-}
 
 func (s Service) scheduleInKubernetes(ctx context.Context, w io.Writer, processName, script, dockerJSON string) error {
 	pod := &corev1.Pod{

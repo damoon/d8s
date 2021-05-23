@@ -1,11 +1,9 @@
 package wedding
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 )
 
 func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
@@ -62,21 +60,8 @@ func (s Service) pullImage(w http.ResponseWriter, r *http.Request) {
 
 	script := fmt.Sprintf(`skopeo copy --retry-times 3 --dest-tls-verify=false docker://%s docker://%s`, from, to)
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	scheduler := s.scheduleInKubernetes
-	err = semSkopeo.Acquire(ctx, 1)
-	if err == nil {
-		log.Printf("pull locally %s", from)
-		defer semSkopeo.Release(1)
-		scheduler = scheduleLocal
-	} else {
-		log.Printf("pull scheduled %s", from)
-	}
-
 	o := &output{w: w}
-	err = scheduler(r.Context(), o, "pull", script, dockerCfg.mustToJSON())
+	err = s.scheduleInKubernetes(r.Context(), o, "pull", script, dockerCfg.mustToJSON())
 	if err != nil {
 		log.Printf("execute pull: %v", err)
 		o.Errorf("execute pull: %v", err)

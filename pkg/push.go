@@ -1,11 +1,9 @@
 package wedding
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -28,21 +26,8 @@ func (s Service) pushImage(w http.ResponseWriter, r *http.Request) {
 	// TODO only use --dest-tls-verify=false for local registry
 	script := fmt.Sprintf(`skopeo copy --retry-times 3 --src-tls-verify=false --dest-tls-verify=false docker://%s docker://%s`, from, to)
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	scheduler := s.scheduleInKubernetes
-	err = semSkopeo.Acquire(ctx, 1)
-	if err == nil {
-		log.Printf("push locally %s", to)
-		defer semSkopeo.Release(1)
-		scheduler = scheduleLocal
-	} else {
-		log.Printf("push scheduled %s", to)
-	}
-
 	o := &output{w: w}
-	err = scheduler(r.Context(), o, "push", script, dockerCfg.mustToJSON())
+	err = s.scheduleInKubernetes(r.Context(), o, "push", script, dockerCfg.mustToJSON())
 	if err != nil {
 		log.Printf("execute push: %v", err)
 		o.Errorf("execute push: %v", err)
