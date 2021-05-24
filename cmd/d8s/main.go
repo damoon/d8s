@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -54,6 +56,11 @@ func main() {
 						Usage:   "Context from kubectl config to use.",
 						EnvVars: []string{"WEDDING_CONTEXT"},
 					},
+					&cli.StringFlag{
+						Name:    "namespace",
+						Usage:   "Namespace to look for wedding server.",
+						EnvVars: []string{"WEDDING_NAMESPACE"},
+					},
 				},
 				Action: run,
 			},
@@ -88,8 +95,9 @@ func run(c *cli.Context) error {
 	}
 
 	context := c.String("context")
+	namespace := c.String("namespace")
 
-	clientset, config, namespace, err := setupKubernetesClient(context)
+	clientset, config, namespace, err := setupKubernetesClient(context, namespace)
 	if err != nil {
 		return fmt.Errorf("setup kubernetes client: %v", err)
 	}
@@ -104,7 +112,12 @@ func run(c *cli.Context) error {
 	localAddr, stopCh := portForward(pod, config)
 	defer close(stopCh)
 
-	err = executeCommand(c.Args(), localAddr)
+	localPort, err := localServer("http://" + localAddr)
+	if err != nil {
+		return fmt.Errorf("parse local address: %v", err)
+	}
+
+	err = executeCommand(c.Args(), fmt.Sprintf("127.0.0.1:%d", localPort))
 	if err != nil {
 		return fmt.Errorf("command failed with %s", err)
 	}
@@ -112,7 +125,7 @@ func run(c *cli.Context) error {
 	return nil
 }
 
-func setupKubernetesClient(context string) (*kubernetes.Clientset, *rest.Config, string, error) {
+func setupKubernetesClient(context, namespace string) (*kubernetes.Clientset, *rest.Config, string, error) {
 	configLoader := clientcmd.NewDefaultClientConfigLoadingRules()
 	configPath := configLoader.Precedence[0]
 
@@ -130,7 +143,9 @@ func setupKubernetesClient(context string) (*kubernetes.Clientset, *rest.Config,
 		context = clientCfg.CurrentContext
 	}
 
-	namespace := clientCfg.Contexts[context].Namespace
+	if namespace != "" {
+		namespace = clientCfg.Contexts[context].Namespace
+	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -292,4 +307,25 @@ func executeCommand(args cli.Args, localAddr string) error {
 	}
 
 	return nil
+}
+
+func localServer(localAddr string) (int, error) {
+	targetURL, err := url.Parse(localAddr)
+	if err != nil {
+		return 0, err
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", proxy.ServeHTTP)
+
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, err
+	}
+
+	go http.Serve(listener, mux)
+
+	return listener.Addr().(*net.TCPAddr).Port, nil
 }
