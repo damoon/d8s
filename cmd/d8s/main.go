@@ -338,6 +338,7 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !re.MatchString(r.URL.Path) {
 			proxy.ServeHTTP(w, r)
+			return
 		}
 
 		chnker := chunker.New(r.Body, staticPol)
