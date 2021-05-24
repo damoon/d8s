@@ -73,6 +73,9 @@ func (s *Service) routes(gitHash, gitRef string) {
 	router.HandleFunc("/{apiVersion}/images/json", imagesJSON).Methods(http.MethodGet)
 	router.HandleFunc("/{apiVersion}/build/prune", buildPrune).Methods(http.MethodPost)
 
+	router.HandleFunc("/_chunks", s.chunkExists).Methods(http.MethodGet)
+	router.HandleFunc("/_chunks", s.addChunk).Methods(http.MethodPost)
+
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotImplemented)
 		w.Write([]byte("This function is not supported by wedding."))

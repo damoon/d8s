@@ -54,7 +54,24 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.buildInKubernetes(w, r, cfg)
+	ctx := r.Context()
+
+	err = s.objectStore.storeContext(ctx, r.Body, cfg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
+		log.Printf("execute build: %v", err)
+		return
+	}
+	defer func() {
+		s.objectStore.deleteContext(ctx, cfg)
+	}()
+
+	err = s.executeBuild(ctx, cfg, w)
+	if err != nil {
+		log.Printf("execute build: %v", err)
+		return
+	}
 }
 
 func buildParameters(r *http.Request) (*buildConfig, error) {
@@ -182,32 +199,11 @@ func printBuildHelpText(w http.ResponseWriter, err error) {
 	}
 }
 
-func (s Service) buildInKubernetes(w http.ResponseWriter, r *http.Request, cfg *buildConfig) {
-	ctx := r.Context()
-
-	err := s.objectStore.storeContext(ctx, r.Body, cfg)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
-		log.Printf("execute build: %v", err)
-		return
-	}
-	defer func() {
-		s.objectStore.deleteContext(ctx, cfg)
-	}()
-
-	err = s.executeBuild(ctx, cfg, w)
-	if err != nil {
-		log.Printf("execute build: %v", err)
-		return
-	}
-}
-
 func (o ObjectStore) storeContext(ctx context.Context, r io.Reader, cfg *buildConfig) error {
 	path := fmt.Sprintf("%d.tar", time.Now().UnixNano())
 	cfg.contextFilePath = path
 
-	_, err := o.Uploader.Upload(&s3manager.UploadInput{
+	_, err := o.Uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket:      aws.String(o.Bucket),
 		Key:         aws.String(path),
 		ContentType: aws.String("application/x-tar"),
@@ -316,10 +312,7 @@ set -euo pipefail
 unset x
 
 echo download build context
-cd ~
-touch  ~/context
-rm -rf  ~/context
-mkdir ~/context && cd ~/context
+cd ~ && mkdir context && cd context
 wget -O - "%s" | tar -xf -
 
 set -x
