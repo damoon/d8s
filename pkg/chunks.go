@@ -106,3 +106,21 @@ func hashData(r io.Reader) ([]byte, error) {
 
 	return h.Sum(nil), nil
 }
+
+// RestoreChunk stores a chunk for later reuse.
+func (s Service) restoreChunk(ctx context.Context, hash []byte) (io.Reader, error) {
+	hashHex := make([]byte, hex.EncodedLen(len(hash)))
+	hex.Encode(hashHex, hash)
+
+	path := filepath.Join("chunks", string(hashHex))
+
+	object, err := s.objectStore.Client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.objectStore.Bucket),
+		Key:    aws.String(path),
+	})
+	if err != nil {
+		return &bytes.Buffer{}, err
+	}
+
+	return object.Body, nil
+}

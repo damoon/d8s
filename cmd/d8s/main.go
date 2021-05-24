@@ -35,7 +35,7 @@ import (
 
 const (
 	weddingPort = 2376
-	testPol     = chunker.Pol(0x3DA3358B4DC173)
+	staticPol   = chunker.Pol(0x3DA3358B4DC173)
 )
 
 var (
@@ -333,35 +333,14 @@ func localServer(localAddr string) (int, error) {
 
 func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) http.HandlerFunc {
 	re := regexp.MustCompile(`^/[^/]+/build$`)
+	chunksList := bytes.Buffer{}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !re.MatchString(r.URL.Path) {
 			proxy.ServeHTTP(w, r)
 		}
 
-		tempFile, err := os.CreateTemp("", "d8s-build-context")
-		if err != nil {
-			log.Printf("create temp file to store context: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer os.Remove(tempFile.Name())
-
-		_, err = io.Copy(tempFile, r.Body)
-		if err != nil {
-			log.Printf("copy build context to temp file: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		_, err = tempFile.Seek(0, io.SeekStart)
-		if err != nil {
-			log.Printf("seek temp context to beginning: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		chnker := chunker.New(tempFile, testPol)
+		chnker := chunker.New(r.Body, staticPol)
 
 		for {
 			c, err := chnker.Next(nil)
@@ -376,9 +355,11 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 				return
 			}
 
-			log.Printf("chunk: Length: %d", c.Length)
+			hash, err := hashData(bytes.NewBuffer(c.Data))
 
-			found, err := chunkExists(r.Context(), localAddr+"/_chunks", bytes.NewBuffer(c.Data))
+			chunksList.Write(hash)
+
+			found, err := chunkExists(r.Context(), localAddr+"/_chunks", hash)
 			if err != nil {
 				log.Printf("chunk #%d deduplication: %v", c.Cut, err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -386,11 +367,11 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 			}
 
 			if found {
-				log.Printf("SKIP uploading chunk #%d: %v", c.Cut, err)
+				log.Printf("SKIP uploading %d bytes", c.Length)
 				continue
 			}
 
-			log.Printf("upload chunk #%d: %v", c.Cut, err)
+			log.Printf("uploading %d bytes", c.Length)
 
 			err = uploadChunk(r.Context(), localAddr+"/_chunks", bytes.NewBuffer(c.Data))
 			if err != nil {
@@ -400,20 +381,14 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 			}
 		}
 
-		_, err = tempFile.Seek(0, io.SeekStart)
-		if err != nil {
-			log.Printf("seek temp context to beginning: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		r.Body = tempFile
+		r.Body = io.NopCloser(bytes.NewReader(chunksList.Bytes()))
+		r.Header.Add("d8s-chunked", "true")
 
 		proxy.ServeHTTP(w, r)
 	}
 }
 
-func chunkExists(ctx context.Context, target string, data io.Reader) (bool, error) {
+func chunkExists(ctx context.Context, target string, hash []byte) (bool, error) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			Dial: (&net.Dialer{
@@ -431,8 +406,6 @@ func chunkExists(ctx context.Context, target string, data io.Reader) (bool, erro
 		return false, fmt.Errorf("create request for chunk deduplication: %v", err)
 	}
 
-	hash, err := hashData(data)
-
 	hashHex := make([]byte, hex.EncodedLen(len(hash)))
 	hex.Encode(hashHex, hash)
 
@@ -444,6 +417,7 @@ func chunkExists(ctx context.Context, target string, data io.Reader) (bool, erro
 	if err != nil {
 		return false, fmt.Errorf("chunk deduplication request: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		return true, nil
@@ -490,6 +464,7 @@ func uploadChunk(ctx context.Context, target string, data io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("chunk upload: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("chunk upload returned status code %d", resp.StatusCode)

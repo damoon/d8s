@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -55,8 +57,39 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	chunked := r.Header.Get("d8s-chunked") != ""
 
-	err = s.objectStore.storeContext(ctx, r.Body, cfg)
+	buildContext := r.Body
+	if chunked {
+		tempfile, err := ioutil.TempFile("", "build-context-restore")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("restore context: %v", err)))
+			log.Printf("restore context: %v", err)
+			return
+		}
+		defer os.Remove(tempfile.Name())
+
+		err = s.restoreContext(ctx, r.Body, tempfile)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("restore context: %v", err)))
+			log.Printf("restore context: %v", err)
+			return
+		}
+
+		_, err = tempfile.Seek(0, io.SeekStart)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("seek restored context file: %v", err)))
+			log.Printf("seek restored context file: %v", err)
+			return
+		}
+
+		buildContext = tempfile
+	}
+
+	err = s.objectStore.storeContext(ctx, buildContext, cfg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
@@ -71,6 +104,27 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("execute build: %v", err)
 		return
+	}
+}
+
+func (s Service) restoreContext(ctx context.Context, chunkList io.Reader, w io.Writer) error {
+	hash := make([]byte, 32)
+
+	for {
+		_, err := chunkList.Read(hash)
+		if err == io.EOF {
+			return nil
+		}
+
+		chunk, err := s.restoreChunk(ctx, hash)
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(w, chunk)
+		if err != nil {
+			return err
+		}
 	}
 }
 
