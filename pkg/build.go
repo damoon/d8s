@@ -70,7 +70,16 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 		}
 		defer os.Remove(tempfile.Name())
 
-		err = s.restoreContext(ctx, r.Body, tempfile)
+		buf := new(bytes.Buffer)
+		_, err = buf.ReadFrom(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("read chunk list: %v", err)))
+			log.Printf("read chunk list: %v", err)
+			return
+		}
+
+		err = s.restoreContext(ctx, buf, tempfile)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(fmt.Sprintf("restore context: %v", err)))
@@ -93,7 +102,7 @@ func (s Service) build(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(fmt.Sprintf("store context: %v", err)))
-		log.Printf("execute build: %v", err)
+		log.Printf("store context: %v", err)
 		return
 	}
 	defer func() {
@@ -367,7 +376,7 @@ unset x
 
 echo download build context
 cd ~ && mkdir context && cd context
-wget -O - "%s" | tar -xf -
+wget -O - "${CONTEXT_URL}" | tar -xf -
 
 set -x
 buildctl-daemonless.sh \
@@ -382,7 +391,7 @@ buildctl-daemonless.sh \
  %s \
  --export-cache=type=registry,ref=wedding-registry:5000/cache-repo,mode=max \
  --import-cache=type=registry,ref=wedding-registry:5000/cache-repo
-`, presignedContextURL, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
+`, dockerfileDir, dockerfileName, buildargs, labels, target, destination)
 
 	buildkitdMemory := 100 * 1024 * 1024
 
@@ -405,6 +414,12 @@ buildctl-daemonless.sh \
 						{
 							MountPath: "/home/user/.config/buildkit",
 							Name:      "buildkitd-config",
+						},
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "CONTEXT_URL",
+							Value: presignedContextURL,
 						},
 					},
 					Resources: corev1.ResourceRequirements{

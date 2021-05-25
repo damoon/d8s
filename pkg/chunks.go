@@ -80,8 +80,6 @@ func (s Service) addChunk(w http.ResponseWriter, r *http.Request) {
 	hashHex := make([]byte, hex.EncodedLen(len(hash)))
 	hex.Encode(hashHex, hash)
 
-	log.Printf("calculated hash: %v", string(hashHex))
-
 	path := filepath.Join("chunks", string(hashHex))
 
 	_, err = s.objectStore.Uploader.UploadWithContext(r.Context(), &s3manager.UploadInput{

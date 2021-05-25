@@ -333,7 +333,6 @@ func localServer(localAddr string) (int, error) {
 
 func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) http.HandlerFunc {
 	re := regexp.MustCompile(`^/[^/]+/build$`)
-	chunksList := bytes.Buffer{}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !re.MatchString(r.URL.Path) {
@@ -342,6 +341,7 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 		}
 
 		chnker := chunker.New(r.Body, staticPol)
+		chunksList := bytes.Buffer{}
 
 		for {
 			c, err := chnker.Next(nil)
