@@ -34,8 +34,9 @@ import (
 )
 
 const (
-	weddingPort = 2376
-	staticPol   = chunker.Pol(0x3DA3358B4DC173)
+	weddingPort    = 2376
+	staticPol      = chunker.Pol(0x3DA3358B4DC173)
+	ErrPodNotExist = NotFoundError("pod could not be found")
 )
 
 var (
@@ -80,6 +81,12 @@ func main() {
 	}
 }
 
+type NotFoundError string
+
+func (e NotFoundError) Error() string {
+	return string(e)
+}
+
 func version(c *cli.Context) error {
 	_, err := os.Stdout.WriteString(fmt.Sprintf("version: %s\ngit commit: %s", gitRef, gitHash))
 	if err != nil {
@@ -98,16 +105,14 @@ func run(c *cli.Context) error {
 	context := c.String("context")
 	namespace := c.String("namespace")
 
-	clientset, config, namespace, err := setupKubernetesClient(context, namespace)
+	clientset, config, contextNamespace, err := setupKubernetesClient(context, namespace)
 	if err != nil {
 		return fmt.Errorf("setup kubernetes client: %v", err)
 	}
 
-	pods := clientset.CoreV1().Pods(namespace)
-
-	pod, err := weddingPod(c.Context, pods)
+	pod, err := findWeddingPod(c.Context, namespace, contextNamespace, clientset)
 	if err != nil {
-		return fmt.Errorf("list pods: %v", err)
+		return fmt.Errorf("find wedding pod: %v", err)
 	}
 
 	localAddr, stopCh := portForward(pod, config)
@@ -156,37 +161,89 @@ func setupKubernetesClient(context, namespace string) (*kubernetes.Clientset, *r
 	return clientset, config, namespace, nil
 }
 
-func weddingPod(ctx context.Context, pods corev1.PodInterface) (*v1.Pod, error) {
+func findWeddingPod(ctx context.Context, definedNamespace, contextNamespace string, clientset *kubernetes.Clientset) (*v1.Pod, error) {
 	for i := 0; i < 60; i++ {
-		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"app": "wedding"}}
-		listOptions := metav1.ListOptions{
-			LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
-			Limit:         100,
-		}
-		pods, err := pods.List(ctx, listOptions)
-		if err != nil {
-			return nil, fmt.Errorf("list pods: %v", err)
-		}
-
-	PODS:
-		for _, pod := range pods.Items {
-			if pod.Status.Phase != v1.PodRunning {
-				continue
+		if definedNamespace != "" {
+			pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods(definedNamespace))
+			if err != nil {
+				return nil, err
 			}
 
-			for _, conditions := range pod.Status.Conditions {
-				if conditions.Status != v1.ConditionTrue {
-					continue PODS
-				}
-			}
+			pod := filterReady(pods.Items)
 
-			return &pod, nil
+			if pod != nil {
+				return pod, nil
+			}
 		}
 
-		time.Sleep(time.Second)
+		if definedNamespace != contextNamespace {
+			pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods(contextNamespace))
+			if err != nil {
+				return nil, err
+			}
+
+			pod := filterReady(pods.Items)
+
+			if pod != nil {
+				return pod, nil
+			}
+		}
+
+		if definedNamespace != "wedding" && contextNamespace != "wedding" {
+			pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods("wedding"))
+			if err != nil {
+				return nil, err
+			}
+
+			pod := filterReady(pods.Items)
+
+			if pod != nil {
+				return pod, nil
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ErrPodNotExist
+		case <-time.After(time.Second):
+			// continue
+		}
 	}
 
-	return nil, fmt.Errorf("running wedding server not found")
+	return nil, ErrPodNotExist
+}
+
+func weddingPodsInNamespace(ctx context.Context, podsAPI corev1.PodInterface) (*v1.PodList, error) {
+	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"app": "wedding"}}
+	listOptions := metav1.ListOptions{
+		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
+		Limit:         100,
+	}
+	pods, err := podsAPI.List(ctx, listOptions)
+	if err != nil {
+		return nil, fmt.Errorf("list pods: %v", err)
+	}
+
+	return pods, nil
+}
+
+func filterReady(pods []v1.Pod) *v1.Pod {
+PODS:
+	for _, pod := range pods {
+		if pod.Status.Phase != v1.PodRunning {
+			continue
+		}
+
+		for _, conditions := range pod.Status.Conditions {
+			if conditions.Status != v1.ConditionTrue {
+				continue PODS
+			}
+		}
+
+		return &pod
+	}
+
+	return nil
 }
 
 func portForward(pod *v1.Pod, cfg *rest.Config) (string, chan struct{}) {
