@@ -17,6 +17,7 @@ k8s_resource(
   'wedding-registry',
   new_name='registry',
   port_forwards=5000,
+  resource_deps=['minio-buckets'],
   labels=["dependencies"],
 )
 
@@ -25,5 +26,6 @@ k8s_resource(
   'wedding-docker-hub-mirror',
   new_name='docker-hub-mirror',
   port_forwards=5001,
+  resource_deps=['minio-buckets'],
   labels=["dependencies"],
 )
