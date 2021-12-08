@@ -19,6 +19,10 @@ func (s Service) runSkopeoPod(ctx context.Context, w io.Writer, processName, scr
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("wedding-%s-", processName),
+			Labels: map[string]string{
+				"app": "wedding",
+				"job": "skopeo",
+			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{

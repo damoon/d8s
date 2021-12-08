@@ -398,6 +398,10 @@ buildctl-daemonless.sh \
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "wedding-build-",
+			Labels: map[string]string{
+				"app": "wedding",
+				"job": "buildkit",
+			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
