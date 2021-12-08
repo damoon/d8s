@@ -59,6 +59,8 @@ spec:
                 secretKeyRef:
                   name: wedding-minio
                   key: MINIO_SECRET_KEY
+            - name: REGISTRY_HTTP_SECRET
+              value: abc123
           volumeMounts:
             - name: config
               mountPath: /etc/docker/registry/
