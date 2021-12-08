@@ -336,8 +336,9 @@ func executeCommand(args cli.Args, localAddr string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "DOCKER_HOST=tcp://"+localAddr)
+	cmd.Env = append(cmd.Env, "DOCKER_BUILDKIT=0")
 
-	fmt.Printf("Execute command DOCKER_HOST=tcp://%s %v\n", localAddr, cmd)
+	fmt.Printf("Execute command DOCKER_HOST=tcp://%s DOCKER_BUILDKIT=0 %v\n", localAddr, cmd)
 
 	err := cmd.Run()
 	if err != nil {
@@ -418,8 +419,6 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 				return
 			}
 		}
-
-		log.Println(chunksList.Bytes())
 
 		r.Body = io.NopCloser(bytes.NewReader(chunksList.Bytes()))
 		r.Header.Add("d8s-chunked", "true")
