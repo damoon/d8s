@@ -1,9 +1,6 @@
 disable_snapshots()
 analytics_settings(enable=False)
-allow_k8s_contexts(['test', 'ci'])
-
-load('ext://min_tilt_version', 'min_tilt_version')
-min_tilt_version('0.15.0') # includes fix for auto_init+False with tilt ci
+allow_k8s_contexts(os.getenv("TILT_ALLOW_CONTEXT"))
 
 include('./service-dependencies/Tiltfile')
 include('./tests/Tiltfile')
