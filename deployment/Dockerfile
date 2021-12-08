@@ -21,7 +21,7 @@ ENV GOOS=linux
 
 COPY cmd cmd
 COPY pkg pkg
-RUN go install -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
+RUN go install -v -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
 
 ###############################################################
 FROM alpine:3.13.5 AS prod

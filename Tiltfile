@@ -20,7 +20,7 @@ if os.environ.get('PROD', '') ==  '':
     sync('cmd',    '/app/cmd'),
     sync('go.mod', '/app/go.mod'),
     sync('go.sum', '/app/go.sum'),
-    run('go install ./cmd/wedding'),
+    run('go install -v ./cmd/wedding'),
   ]
 
 docker_build(
