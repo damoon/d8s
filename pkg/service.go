@@ -16,8 +16,8 @@ const (
 	MaxExecutionTime = 30 * time.Minute
 
 	apiVersion     = "1.40"
-	buildkitImage  = "moby/buildkit:v0.8.1-rootless"
-	skopeoImage    = "mrliptontea/skopeo:1.2.0"
+	buildkitImage  = "moby/buildkit:v0.9.3-rootless"
+	skopeoImage    = "ghcr.io/utopia-planitia/skopeo-image@sha256:130836bd82e5f3a856f659e22f0e9d97c545ff0d955807b806595ec4874d5f37"
 	buildMemory    = "2147483648" // 2Gi default
 	buildCPUQuota  = 100_000      // results in 1 cpu
 	buildCPUPeriod = 100_000      // 100ms is the default of docker
