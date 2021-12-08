@@ -50,7 +50,7 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: "1Gi" # increased to allow go to compile, and tile to hot reload
+              memory: "1Gi" # increased to allow go to compile, and tilt to hot reload
               cpu: "100m"
             limits:
               memory: "1Gi"

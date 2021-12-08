@@ -1,5 +1,3 @@
-FROM nginx AS http
+FROM nginx
 
 COPY index.html /usr/share/nginx/html/index.html
-
-FROM alpine as cli

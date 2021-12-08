@@ -31,8 +31,8 @@ local_resource ('test max memory',
   labels=["tests"],
 )
 
-local_resource ('test tilt ci',
-  'timeout 360 bash tilt-ci.sh',
+local_resource ('test d8s build',
+  'timeout 120 bash d8s-build.sh',
   deps=['..'],
   resource_deps=['wedding'],
   allow_parallel=True,
