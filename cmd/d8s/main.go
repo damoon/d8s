@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/restic/chunker"
+	"github.com/urfave/cli/v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -29,8 +30,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
-
-	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -53,6 +52,12 @@ func main() {
 				Name:  "run",
 				Usage: "Connect to wedding server and set DOCKER_HOST for started process.",
 				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "kubeconfig",
+						Usage:   "Kubeconfig file to use.",
+						EnvVars: []string{"WEDDING_KUBECONFIG", "KUBECONFIG"},
+						Value:   "~/.kube/config",
+					},
 					&cli.StringFlag{
 						Name:    "context",
 						Usage:   "Context from kubectl config to use.",
@@ -102,15 +107,16 @@ func run(c *cli.Context) error {
 		return fmt.Errorf("command missing")
 	}
 
+	kubeconfig := c.String("kubeconfig")
 	context := c.String("context")
 	namespace := c.String("namespace")
 
-	clientset, config, contextNamespace, err := setupKubernetesClient(context, namespace)
+	clientset, config, context, namespace, err := setupKubernetesClient(kubeconfig, context, namespace)
 	if err != nil {
 		return fmt.Errorf("setup kubernetes client: %v", err)
 	}
 
-	pod, err := findWeddingPod(c.Context, namespace, contextNamespace, clientset)
+	pod, err := findWeddingPod(c.Context, namespace, clientset)
 	if err != nil {
 		return fmt.Errorf("find wedding pod: %v", err)
 	}
@@ -131,75 +137,49 @@ func run(c *cli.Context) error {
 	return nil
 }
 
-func setupKubernetesClient(context, namespace string) (*kubernetes.Clientset, *rest.Config, string, error) {
+// https://stackoverflow.com/questions/50435564/use-kubectl-context-in-kubernetes-client-go
+func setupKubernetesClient(kubeconfig, context, namespace string) (*kubernetes.Clientset, *rest.Config, string, string, error) {
 	configLoader := clientcmd.NewDefaultClientConfigLoadingRules()
-	configPath := configLoader.Precedence[0]
+
+	configLoader.ExplicitPath = kubeconfig
 
 	clientCfg, err := configLoader.Load()
 	if err != nil {
-		return nil, nil, "", err
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", configPath)
-	if err != nil {
-		panic(err.Error())
+		return nil, nil, "", "", err
 	}
 
 	if context == "" {
 		context = clientCfg.CurrentContext
 	}
 
-	if namespace != "" {
+	if namespace == "" {
 		namespace = clientCfg.Contexts[context].Namespace
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		return nil, nil, "", "", err
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", err
 	}
 
-	return clientset, config, namespace, nil
+	return clientset, config, context, namespace, nil
 }
 
-func findWeddingPod(ctx context.Context, definedNamespace, contextNamespace string, clientset *kubernetes.Clientset) (*v1.Pod, error) {
+func findWeddingPod(ctx context.Context, namespace string, clientset *kubernetes.Clientset) (*v1.Pod, error) {
 	for i := 0; i < 60; i++ {
-		if definedNamespace != "" {
-			pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods(definedNamespace))
-			if err != nil {
-				return nil, err
-			}
-
-			pod := filterReady(pods.Items)
-
-			if pod != nil {
-				return pod, nil
-			}
+		pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods(namespace))
+		if err != nil {
+			return nil, err
 		}
 
-		if definedNamespace != contextNamespace {
-			pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods(contextNamespace))
-			if err != nil {
-				return nil, err
-			}
+		pod := filterReady(pods.Items)
 
-			pod := filterReady(pods.Items)
-
-			if pod != nil {
-				return pod, nil
-			}
-		}
-
-		if definedNamespace != "wedding" && contextNamespace != "wedding" {
-			pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods("wedding"))
-			if err != nil {
-				return nil, err
-			}
-
-			pod := filterReady(pods.Items)
-
-			if pod != nil {
-				return pod, nil
-			}
+		if pod != nil {
+			return pod, nil
 		}
 
 		select {
@@ -438,6 +418,8 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string) ht
 				return
 			}
 		}
+
+		log.Println(chunksList.Bytes())
 
 		r.Body = io.NopCloser(bytes.NewReader(chunksList.Bytes()))
 		r.Header.Add("d8s-chunked", "true")
