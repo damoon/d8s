@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -44,6 +45,11 @@ var (
 )
 
 func main() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("look up user home dir: %v", err)
+	}
+
 	app := &cli.App{
 		Name:  "Wedding client",
 		Usage: "Make wedding accessible.",
@@ -56,7 +62,7 @@ func main() {
 						Name:    "kubeconfig",
 						Usage:   "Kubeconfig file to use.",
 						EnvVars: []string{"WEDDING_KUBECONFIG", "KUBECONFIG"},
-						Value:   "~/.kube/config",
+						Value:   filepath.Join(homeDir, ".kube", "config"),
 					},
 					&cli.StringFlag{
 						Name:    "context",
@@ -79,7 +85,7 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	err = app.Run(os.Args)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
