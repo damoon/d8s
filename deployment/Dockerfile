@@ -24,7 +24,7 @@ COPY pkg pkg
 RUN go install -v -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
 
 ###############################################################
-FROM alpine:3.13.5 AS prod
+FROM alpine:3.15.0 AS prod
 
 RUN apk add --no-cache ca-certificates
 WORKDIR /root/
