@@ -1,4 +1,4 @@
-module github.com/damoon/wedding
+module github.com/damoon/d8s
 
 go 1.16
 

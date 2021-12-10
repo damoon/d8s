@@ -21,12 +21,15 @@ ENV GOOS=linux
 
 COPY cmd cmd
 COPY pkg pkg
-RUN go install -v -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" -installsuffix cgo ./cmd/wedding
+RUN go install -v \
+    -ldflags="-X main.gitRef=${SOURCE_BRANCH} -X main.gitHash=${SOURCE_COMMIT}" \
+    -installsuffix cgo \
+    ./cmd/dinner
 
 ###############################################################
 FROM alpine:3.13.5 AS prod
 
 RUN apk add --no-cache ca-certificates
 WORKDIR /root/
-COPY --from=build-env /go/bin/wedding /usr/local/bin/wedding
-ENTRYPOINT [ "wedding", "server" ]
+COPY --from=build-env /go/bin/dinner /usr/local/bin/dinner
+ENTRYPOINT [ "dinner", "server" ]

@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	weddingPort    = 2376
+	dinnerPort     = 2376
 	staticPol      = chunker.Pol(0x3DA3358B4DC173)
 	ErrPodNotExist = NotFoundError("pod could not be found")
 )
@@ -67,34 +67,34 @@ func main() {
 	}
 
 	app := &cli.App{
-		Name:  "Wedding client",
-		Usage: "Make wedding accessible.",
+		Name:  "D8s (dates).",
+		Usage: "The client for dinner.",
 		Commands: []*cli.Command{
 			{
 				Name:  "run",
-				Usage: "Connect to wedding server and set DOCKER_HOST for started process.",
+				Usage: "Connect to dinner server and set DOCKER_HOST for started process.",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:    "verbose",
 						Aliases: []string{"v"},
 						Usage:   "Print verbose logs.",
-						EnvVars: []string{"WEDDING_VERBOSE"},
+						EnvVars: []string{"D8S_VERBOSE"},
 					},
 					&cli.StringFlag{
 						Name:    "kubeconfig",
 						Usage:   "Kubeconfig file to use.",
-						EnvVars: []string{"WEDDING_KUBECONFIG", "KUBECONFIG"},
+						EnvVars: []string{"D8S_KUBECONFIG", "KUBECONFIG"},
 						Value:   filepath.Join(homeDir, ".kube", "config"),
 					},
 					&cli.StringFlag{
 						Name:    "context",
 						Usage:   "Context from kubectl config to use.",
-						EnvVars: []string{"WEDDING_CONTEXT"},
+						EnvVars: []string{"D8S_CONTEXT"},
 					},
 					&cli.StringFlag{
 						Name:    "namespace",
-						Usage:   "Namespace to look for wedding server.",
-						EnvVars: []string{"WEDDING_NAMESPACE"},
+						Usage:   "Namespace to look for dinner server.",
+						EnvVars: []string{"D8S_NAMESPACE"},
 					},
 				},
 				Action: run,
@@ -145,9 +145,9 @@ func run(c *cli.Context) error {
 		return fmt.Errorf("setup kubernetes client: %v", err)
 	}
 
-	pod, err := findWeddingPod(c.Context, namespace, clientset)
+	pod, err := findDinnerPod(c.Context, namespace, clientset)
 	if err != nil {
-		return fmt.Errorf("find wedding pod: %v", err)
+		return fmt.Errorf("find dinner pod: %v", err)
 	}
 
 	localAddr, stopCh := portForward(pod, config, verbose)
@@ -198,9 +198,9 @@ func setupKubernetesClient(kubeconfig, context, namespace string) (*kubernetes.C
 	return clientset, config, context, namespace, nil
 }
 
-func findWeddingPod(ctx context.Context, namespace string, clientset *kubernetes.Clientset) (*v1.Pod, error) {
+func findDinnerPod(ctx context.Context, namespace string, clientset *kubernetes.Clientset) (*v1.Pod, error) {
 	for i := 0; i < 60; i++ {
-		pods, err := weddingPodsInNamespace(ctx, clientset.CoreV1().Pods(namespace))
+		pods, err := dinnerPodsInNamespace(ctx, clientset.CoreV1().Pods(namespace))
 		if err != nil {
 			return nil, err
 		}
@@ -222,8 +222,8 @@ func findWeddingPod(ctx context.Context, namespace string, clientset *kubernetes
 	return nil, ErrPodNotExist
 }
 
-func weddingPodsInNamespace(ctx context.Context, podsAPI corev1.PodInterface) (*v1.PodList, error) {
-	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"app": "wedding"}}
+func dinnerPodsInNamespace(ctx context.Context, podsAPI corev1.PodInterface) (*v1.PodList, error) {
+	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"app": "dinner"}}
 	listOptions := metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 		Limit:         100,
@@ -289,7 +289,7 @@ func portForward(pod *v1.Pod, cfg *rest.Config, verbose bool) (string, chan stru
 		err := portForwardPod(
 			pod.ObjectMeta.Namespace,
 			pod.ObjectMeta.Name,
-			weddingPort,
+			dinnerPort,
 			cfg,
 			stopCh,
 			readyCh,

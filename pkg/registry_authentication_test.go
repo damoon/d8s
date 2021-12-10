@@ -1,4 +1,4 @@
-package wedding
+package d8s
 
 import (
 	"encoding/base64"

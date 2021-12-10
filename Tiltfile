@@ -2,7 +2,6 @@ disable_snapshots()
 analytics_settings(enable=False)
 allow_k8s_contexts(os.getenv("TILT_ALLOW_CONTEXT"))
 
-include('./service-dependencies/Tiltfile')
 include('./tests/Tiltfile')
 
 k8s_yaml('deployment/config.yaml')
@@ -17,11 +16,11 @@ if os.environ.get('PROD', '') ==  '':
     sync('cmd',    '/app/cmd'),
     sync('go.mod', '/app/go.mod'),
     sync('go.sum', '/app/go.sum'),
-    run('go install -v ./cmd/wedding'),
+    run('go install -v ./cmd/dinner'),
   ]
 
 docker_build(
-  'davedamoon/wedding:latest',
+  'davedamoon/dinner:latest',
   '.',
   dockerfile='deployment/Dockerfile',
   target=target,
@@ -40,7 +39,7 @@ docker_build(
 )
 
 k8s_resource(
-  'wedding',
+  'dinner',
   port_forwards=['12376:2376'],
   resource_deps=['minio-buckets', 'registry', 'docker-hub-mirror'],
   labels=["application"],

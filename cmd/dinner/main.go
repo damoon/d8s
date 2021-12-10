@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	wedding "github.com/damoon/wedding/pkg"
+	dinner "github.com/damoon/d8s/pkg"
 	"github.com/urfave/cli/v2"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -29,8 +29,8 @@ var (
 
 func main() {
 	app := &cli.App{
-		Name:   "Wedding",
-		Usage:  "Serve dockerd API by running kubernetes jobs.",
+		Name:   "Dinner",
+		Usage:  "Proxy to minimize data transfer volume of docker build contexts.",
 		Action: run,
 		Commands: []*cli.Command{
 			{
@@ -38,12 +38,7 @@ func main() {
 				Usage: "Start the server.",
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "addr", Value: ":2376", Usage: "Address to run service on."},
-					&cli.StringFlag{Name: "s3-endpoint", Required: true, Usage: "s3 endpoint."},
-					&cli.StringFlag{Name: "s3-access-key-file", Required: true, Usage: "Path to s3 access key."},
-					&cli.StringFlag{Name: "s3-secret-key-file", Required: true, Usage: "Path to s3 secret access key."},
-					&cli.BoolFlag{Name: "s3-ssl", Value: true, Usage: "s3 uses SSL."},
-					&cli.StringFlag{Name: "s3-location", Value: "us-east-1", Usage: "s3 bucket location."},
-					&cli.StringFlag{Name: "s3-bucket", Required: true, Usage: "s3 bucket name."},
+					&cli.StringFlag{Name: "upstream", Value: "tcp:://127.0.0.1:2376", Usage: "Upstream to forward requests to."},
 				},
 				Action: run,
 			},
@@ -95,7 +90,7 @@ func run(c *cli.Context) error {
 
 	log.Println("set up service")
 
-	svc := wedding.NewService(gitHash, gitRef, storage, kubernetesClient, namespace)
+	svc := dinner.NewService(gitHash, gitRef, storage, kubernetesClient, namespace)
 
 	svcServer := httpServer(svc, c.String("addr"))
 
@@ -107,7 +102,7 @@ func run(c *cli.Context) error {
 
 	awaitShutdown()
 
-	ctx, cancel := context.WithTimeout(context.Background(), wedding.MaxExecutionTime)
+	ctx, cancel := context.WithTimeout(context.Background(), dinner.MaxExecutionTime)
 	defer cancel()
 
 	err = shutdown(ctx, svcServer)
@@ -124,7 +119,7 @@ func setupObjectStore(
 	endpoint, accessKeyPath, secretKeyPath string,
 	useSSL bool,
 	region, bucket string,
-) (*wedding.ObjectStore, error) {
+) (*dinner.ObjectStore, error) {
 	accessKeyBytes, err := ioutil.ReadFile(accessKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading secret access key from %s: %v", accessKeyPath, err)
@@ -158,7 +153,7 @@ func setupObjectStore(
 
 	s3Client := s3.New(sess)
 
-	return &wedding.ObjectStore{
+	return &dinner.ObjectStore{
 		Client:   s3Client,
 		Uploader: s3manager.NewUploader(sess),
 		Bucket:   bucket,
@@ -186,8 +181,8 @@ func setupKubernetesClient() (*kubernetes.Clientset, string, error) {
 
 func httpServer(h http.Handler, addr string) *http.Server {
 	httpServer := &http.Server{
-		ReadTimeout:  wedding.MaxExecutionTime,
-		WriteTimeout: wedding.MaxExecutionTime,
+		ReadTimeout:  dinner.MaxExecutionTime,
+		WriteTimeout: dinner.MaxExecutionTime,
 	}
 	httpServer.Addr = addr
 	httpServer.Handler = h
