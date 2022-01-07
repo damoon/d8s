@@ -1,5 +1,5 @@
 # build-env ###################################################
-FROM golang:1.16.4-buster AS build-env
+FROM golang:1.17.6-buster AS build-env
 
 WORKDIR /app
 
