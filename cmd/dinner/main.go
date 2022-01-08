@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -18,8 +20,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	dinner "github.com/damoon/d8s/pkg"
 	"github.com/urfave/cli/v2"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -37,8 +37,14 @@ func main() {
 				Name:  "server",
 				Usage: "Start the server.",
 				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "addr", Value: ":2376", Usage: "Address to run service on."},
-					&cli.StringFlag{Name: "upstream", Value: "tcp:://127.0.0.1:2376", Usage: "Upstream to forward requests to."},
+					&cli.StringFlag{Name: "addr", Value: ":2375", Usage: "Address to run service on."},
+					&cli.StringFlag{Name: "s3-endpoint", Required: true, Usage: "s3 endpoint."},
+					&cli.StringFlag{Name: "s3-access-key-file", Required: true, Usage: "Path to s3 access key."},
+					&cli.StringFlag{Name: "s3-secret-key-file", Required: true, Usage: "Path to s3 secret access key."},
+					&cli.BoolFlag{Name: "s3-ssl", Value: true, Usage: "s3 uses SSL."},
+					&cli.StringFlag{Name: "s3-location", Value: "us-east-1", Usage: "s3 bucket location."},
+					&cli.StringFlag{Name: "s3-bucket", Required: true, Usage: "s3 bucket name."},
+					&cli.StringFlag{Name: "upstream", Required: true, Usage: "Upstream to forward requests to."},
 				},
 				Action: run,
 			},
@@ -81,16 +87,15 @@ func run(c *cli.Context) error {
 		return fmt.Errorf("setup minio s3 client: %v", err)
 	}
 
-	log.Println("set up kubernetes client")
-
-	kubernetesClient, namespace, err := setupKubernetesClient()
+	log.Println("set up upstream proxy")
+	upstream, err := setupUpstreamProxy(c.String("upstream"))
 	if err != nil {
-		return fmt.Errorf("setup kubernetes client: %v", err)
+		return fmt.Errorf("setup upstream proxy: %v", err)
 	}
 
 	log.Println("set up service")
 
-	svc := dinner.NewService(gitHash, gitRef, storage, kubernetesClient, namespace)
+	svc := dinner.NewService(gitHash, gitRef, storage, upstream)
 
 	svcServer := httpServer(svc, c.String("addr"))
 
@@ -160,23 +165,13 @@ func setupObjectStore(
 	}, nil
 }
 
-func setupKubernetesClient() (*kubernetes.Clientset, string, error) {
-	ns, err := ioutil.ReadFile("/run/secrets/kubernetes.io/serviceaccount/namespace")
+func setupUpstreamProxy(upstream string) (*httputil.ReverseProxy, error) {
+	upstreamURL, err := url.Parse(upstream)
 	if err != nil {
-		return nil, "", fmt.Errorf("read namespace: %v", err)
+		return nil, err
 	}
 
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, "", err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return clientset, string(ns), nil
+	return httputil.NewSingleHostReverseProxy(upstreamURL), nil
 }
 
 func httpServer(h http.Handler, addr string) *http.Server {

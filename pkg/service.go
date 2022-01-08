@@ -1,14 +1,13 @@
 package d8s
 
 import (
-	"log"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
-	"k8s.io/client-go/kubernetes"
 )
 
 const (
@@ -30,20 +29,18 @@ var (
 	semSkopeo = semaphore.NewWeighted(5)
 )
 
-// Service runs the wedding server.
+// Service runs the dinner server.
 type Service struct {
-	router           http.Handler
-	objectStore      *ObjectStore
-	namespace        string
-	kubernetesClient *kubernetes.Clientset
+	router      http.Handler
+	objectStore *ObjectStore
+	upstream    *httputil.ReverseProxy
 }
 
 // NewService creates a new service server and initiates the routes.
-func NewService(gitHash, gitRef string, objectStore *ObjectStore, kubernetesClient *kubernetes.Clientset, namespace string) *Service {
+func NewService(gitHash, gitRef string, objectStore *ObjectStore, upstream *httputil.ReverseProxy) *Service {
 	srv := &Service{
-		objectStore:      objectStore,
-		namespace:        namespace,
-		kubernetesClient: kubernetesClient,
+		objectStore: objectStore,
+		upstream:    upstream,
 	}
 
 	srv.routes(gitHash, gitRef)
@@ -58,28 +55,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Service) routes(gitHash, gitRef string) {
 	router := mux.NewRouter()
 	router.HandleFunc("/_ping", ping).Methods(http.MethodGet)
-	router.HandleFunc("/session", ignored).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/version", versionHandler(gitHash, gitRef)).Methods(http.MethodGet)
-	router.HandleFunc("/{apiVersion}/info", ignored).Methods(http.MethodGet)
 
 	router.HandleFunc("/{apiVersion}/build", s.build).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/images/{name:.+}/tag", s.tagImage).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/images/{name:.+}/push", s.pushImage).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/images/{name:.+}/json", s.inspect).Methods(http.MethodGet)
-	router.HandleFunc("/{apiVersion}/images/create", s.pullImage).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/containers/{name:.+}/json", missing).Methods(http.MethodGet)
-
-	router.HandleFunc("/{apiVersion}/containers/prune", containersPrune).Methods(http.MethodPost)
-	router.HandleFunc("/{apiVersion}/images/json", imagesJSON).Methods(http.MethodGet)
-	router.HandleFunc("/{apiVersion}/build/prune", buildPrune).Methods(http.MethodPost)
 
 	router.HandleFunc("/_chunks", s.chunkExists).Methods(http.MethodGet)
 	router.HandleFunc("/_chunks", s.addChunk).Methods(http.MethodPost)
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte("This function is not supported by wedding."))
-		log.Printf("501 - Not Implemented: %s %s", r.Method, r.URL)
+		s.upstream.ServeHTTP(w, r)
 	})
 
 	s.router = loggingMiddleware(router)

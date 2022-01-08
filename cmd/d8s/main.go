@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	dinnerPort     = 2376
+	dinnerPort     = 2375
 	staticPol      = chunker.Pol(0x3DA3358B4DC173)
 	ErrPodNotExist = NotFoundError("pod could not be found")
 )
@@ -367,7 +367,7 @@ func executeCommand(args cli.Args, localAddr string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "DOCKER_HOST=tcp://"+localAddr)
-	cmd.Env = append(cmd.Env, "DOCKER_BUILDKIT=0")
+	cmd.Env = append(cmd.Env, "DOCKER_BUILDKIT=1")
 
 	fmt.Printf("Execute command DOCKER_HOST=tcp://%s DOCKER_BUILDKIT=0 %v\n", localAddr, cmd)
 
@@ -408,6 +408,9 @@ func uploadContextHandlerFunc(proxy *httputil.ReverseProxy, localAddr string, ve
 			proxy.ServeHTTP(w, r)
 			return
 		}
+
+		proxy.ServeHTTP(w, r)
+		return
 
 		chunker := chunker.New(r.Body, staticPol)
 		chunksList := &bytes.Buffer{}

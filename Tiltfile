@@ -2,9 +2,9 @@ disable_snapshots()
 analytics_settings(enable=False)
 allow_k8s_contexts(os.getenv("TILT_ALLOW_CONTEXT"))
 
+include('./service-dependencies/Tiltfile')
 include('./tests/Tiltfile')
 
-k8s_yaml('deployment/config.yaml')
 k8s_yaml('deployment/kubernetes.yaml')
 
 target='prod'
@@ -40,7 +40,7 @@ docker_build(
 
 k8s_resource(
   'dinner',
-  port_forwards=['12376:2376'],
-  resource_deps=['minio-buckets', 'registry', 'docker-hub-mirror'],
+  port_forwards=['12375:2375'],
+  resource_deps=['minio-buckets', 'dind'],
   labels=["application"],
 )

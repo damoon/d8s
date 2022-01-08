@@ -7,7 +7,7 @@ spec:
     app: dinner
   ports:
     - name: dinner
-      port: 2376
+      port: 2375
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -24,17 +24,27 @@ spec:
       labels:
         app: dinner
     spec:
-      serviceAccountName: dinner
       containers:
         - name: dinner
           image: davedamoon/dinner:latest
+          args:
+            - --s3-endpoint=d8s-minio:9000
+            - --s3-access-key-file=/secret/minio/MINIO_ACCESS_KEY
+            - --s3-secret-key-file=/secret/minio/MINIO_SECRET_KEY
+            - --s3-ssl=false
+            - --s3-bucket=chunks
+            - --upstream=http://d8s-dind:2375
           ports:
             - name: dinner
-              containerPort: 2376
+              containerPort: 2375
           readinessProbe:
             httpGet:
               path: /_ping
-              port: 2376
+              port: 2375
+          volumeMounts:
+            - name: minio
+              mountPath: "/secret/minio"
+              readOnly: true
           resources:
             requests:
               memory: "1Gi" # increased to allow go to compile, and tilt to hot reload
@@ -42,3 +52,7 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "200m"
+      volumes:
+        - name: minio
+          secret:
+            secretName: d8s-minio
