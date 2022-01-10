@@ -1,40 +1,18 @@
 
 local_resource ('test build',
-  'timeout 120 bash docker-build.sh',
+  'timeout 120 bash build.sh',
   deps=['..'],
-  resource_deps=['dinner'],
-  allow_parallel=True,
   labels=["tests"],
 )
 
-local_resource ('test pull tag push',
+local_resource ('test pull tag',
   'timeout 200 bash docker-pull-tag-push.sh',
   deps=['..'],
-  resource_deps=['dinner'],
-  allow_parallel=True,
   labels=["tests"],
 )
 
 local_resource ('test inspect',
   'timeout 200 bash docker-inspect.sh',
   deps=['..'],
-  resource_deps=['dinner'],
-  allow_parallel=True,
-  labels=["tests"],
-)
-
-local_resource ('test max memory',
-  'timeout 120 bash docker-max-memory.sh',
-  deps=['..'],
-  resource_deps=['dinner'],
-  allow_parallel=True,
-  labels=["tests"],
-)
-
-local_resource ('test d8s build',
-  'timeout 120 bash d8s-build.sh',
-  deps=['..'],
-  resource_deps=['dinner'],
-  allow_parallel=True,
   labels=["tests"],
 )
