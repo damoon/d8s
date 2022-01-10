@@ -1,18 +1,12 @@
 
 local_resource ('test build',
-  'timeout 120 bash build.sh',
+  'timeout 120 go run .. up bash build.sh',
   deps=['..'],
   labels=["tests"],
 )
 
-local_resource ('test pull tag',
-  'timeout 200 bash docker-pull-tag-push.sh',
-  deps=['..'],
-  labels=["tests"],
-)
-
-local_resource ('test inspect',
-  'timeout 200 bash docker-inspect.sh',
+local_resource ('test pull tag inspect delete',
+  'timeout 200 go run .. up bash pull-tag-inspect-delete.sh',
   deps=['..'],
   labels=["tests"],
 )

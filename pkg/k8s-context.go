@@ -1,9 +1,16 @@
 package d8s
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+)
+
+var (
+	//go:embed kubernetes.yaml
+	manifest string
 )
 
 func contextAllowed(envVar string) (bool, error) {
@@ -20,7 +27,7 @@ func contextAllowed(envVar string) (bool, error) {
 		return true, nil
 	}
 
-	return false, nil
+	return false, fmt.Errorf("context %s does not appear to be a development environment", contextName)
 }
 
 func kubectlContext() (string, error) {
@@ -36,7 +43,7 @@ func kubectlContext() (string, error) {
 		return "", fmt.Errorf("execute %v: %v", cmd.String(), err)
 	}
 
-	return string(context), nil
+	return strings.TrimSpace(string(context)), nil
 }
 
 // see https://github.com/tilt-dev/tilt/blob/fe386b5cc967383972bf73f8cbe6514c604100f8/internal/k8s/env.go#L38

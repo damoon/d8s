@@ -10,12 +10,6 @@ import (
 )
 
 var (
-	verbose = &cli.BoolFlag{
-		Name:    "verbose",
-		Aliases: []string{"v"},
-		Usage:   "Print verbose logs.",
-		EnvVars: []string{"D8S_VERBOSE"},
-	}
 	allowContext = &cli.StringFlag{
 		Name:    "allow-context",
 		Usage:   "Allowed Kubernetes context name.",
@@ -24,35 +18,49 @@ var (
 )
 
 func main() {
+	up := func(c *cli.Context) error {
+		ctx := c.Context
+		allowContext := c.String(allowContext.Name)
+		args := c.Args()
+		if !args.Present() {
+			return fmt.Errorf("command missing")
+		}
+		command := args.Slice()
+
+		return d8s.Up(ctx, allowContext, command)
+	}
+	down := func(c *cli.Context) error {
+		ctx := c.Context
+		allowContext := c.String(allowContext.Name)
+
+		return d8s.Down(ctx, allowContext)
+	}
+	version := func(c *cli.Context) error {
+		return d8s.Version()
+	}
+
 	app := &cli.App{
 		Name:  "D8s (dates).",
-		Usage: "The client for dinner.",
+		Usage: "A wrapper for docker in docker doing port-forward.",
+		Flags: []cli.Flag{
+			allowContext,
+		},
+		Action: up,
 		Commands: []*cli.Command{
 			{
-				Name:  "up",
-				Usage: "Connect to docker in docker and set DOCKER_HOST for started process.",
-				Flags: []cli.Flag{
-					verbose,
-					allowContext,
-				},
-				Action: func(c *cli.Context) error {
-					allowContext := c.String(allowContext.Name)
-					verbose := c.Bool(verbose.Name)
-					args := c.Args()
-					if !args.Present() {
-						return fmt.Errorf("command missing")
-					}
-					command := args.Slice()
-
-					return d8s.Up(allowContext, verbose, command)
-				},
+				Name:   "up",
+				Usage:  "Connect to docker in docker and set DOCKER_HOST for started process.",
+				Action: up,
 			},
 			{
-				Name:  "version",
-				Usage: "Show the version",
-				Action: func(c *cli.Context) error {
-					return d8s.Version()
-				},
+				Name:   "down",
+				Usage:  "Deletes docker in docker deployment.",
+				Action: down,
+			},
+			{
+				Name:   "version",
+				Usage:  "Show the version",
+				Action: version,
 			},
 		},
 	}

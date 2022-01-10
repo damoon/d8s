@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dind
+spec:
+  ports:
+    - name: dind
+      port: 2375
+  selector:
+    app: dind
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dind
+spec:
+  selector:
+    matchLabels:
+      app: dind
+  strategy:
+    type: Recreate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dind
+    spec:
+      shareProcessNamespace: true
+      containers:
+        - name: nurse
+          image: ghcr.io/turbine-kreuzberg/dind-nurse:latest
+          imagePullPolicy: Always
+          args:
+            - server
+          ports:
+            - name: nurse
+              containerPort: 2375
+          readinessProbe:
+            httpGet:
+              path: /_nurse_healthy
+              port: 2375
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/docker
+        - name: dind
+          image: docker:20.10.12-dind@sha256:1f50d3a86f7035805843779f803e81e8f4ce96b62ed68fc70cdcf4922f43470b
+          command:
+            - sh
+            - -c
+          args:
+            - |
+              while true; do
+                dockerd-entrypoint.sh dockerd --host=tcp://0.0.0.0:12375 --tls=false --mtu=1300 &> /dev/null
+                date;
+                echo restarted to avoid OOM during builds;
+              done
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+            - name: DOCKER_BUILDKIT
+              value: "1"
+          securityContext: 
+            privileged: true
+          ports:
+            - name: dind
+              containerPort: 12375
+          readinessProbe:
+            httpGet:
+              path: /_ping
+              port: 12375
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/docker
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dind
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dind
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
