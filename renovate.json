@@ -1,14 +1,63 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:base"
+      "config:base"
   ],
+  "pinDigests": true,
   "postUpdateOptions": [
-    "gomodTidy",
-    "gomodUpdateImportPaths"
+      "gomodTidy",
+      "gomodUpdateImportPaths"
   ],
   "prHourlyLimit": 0,
   "labels": [
-    "renovate-bot"
+      "renovate-bot"
+  ],
+  "automerge": true,
+  "automergeType": "pr",
+  "kubernetes": {
+      "fileMatch": [
+          "\\.yaml$"
+      ]
+  },
+  "packageRules": [
+      {
+          "matchPackageNames": [
+              "ghcr.io/turbine-kreuzberg/dind-nurse"
+          ],
+          "enabled": false,
+          "pinDigests": false
+      }
+  ],
+  "regexManagers": [
+      {
+          "fileMatch": [
+              "^.github/workflows/check.yml$"
+          ],
+          "matchStrings": [
+              "version: (?<currentValue>.*?)\n"
+          ],
+          "depNameTemplate": "golangci/golangci-lint",
+          "datasourceTemplate": "github-tags"
+      },
+      {
+          "fileMatch": [
+              "^.github/workflows/check.yml$"
+          ],
+          "matchStrings": [
+              "go-version: '(?<currentValue>.*?)'\n"
+          ],
+          "depNameTemplate": "golang/go",
+          "datasourceTemplate": "github-tags"
+      },
+      {
+          "fileMatch": [
+              "^.github/workflows/check.yml$"
+          ],
+          "matchStrings": [
+              "tilt: '(?<currentValue>.*?)'\n"
+          ],
+          "depNameTemplate": "tilt-dev/tilt",
+          "datasourceTemplate": "github-tags"
+      }
   ]
 }
