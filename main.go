@@ -36,7 +36,7 @@ func main() {
 		return d8s.Down(ctx, allowContext)
 	}
 	version := func(c *cli.Context) error {
-		return d8s.Version()
+		return Version()
 	}
 
 	app := &cli.App{
