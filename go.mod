@@ -3,7 +3,7 @@ module github.com/damoon/d8s
 go 1.16
 
 require (
-	github.com/aws/aws-sdk-go v1.38.45
+	github.com/aws/aws-sdk-go v1.42.30
 	github.com/gorilla/mux v1.8.0
 	github.com/restic/chunker v0.4.0
 	github.com/urfave/cli/v2 v2.3.0
