@@ -1,4 +1,4 @@
-package main
+package d8s
 
 import (
 	"bufio"
@@ -10,13 +10,10 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/restic/chunker"
 	"github.com/urfave/cli/v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,82 +28,8 @@ import (
 
 const (
 	dinnerPort     = 2375
-	staticPol      = chunker.Pol(0x3DA3358B4DC173)
 	ErrPodNotExist = NotFoundError("pod could not be found")
 )
-
-var (
-	gitHash string
-	gitRef  = "latest"
-)
-
-type MutexMap struct {
-	mutexes sync.Map
-}
-
-func (mm *MutexMap) Lock(key []byte) func() {
-	value, _ := mm.mutexes.LoadOrStore(string(key), &sync.Mutex{})
-	mu := value.(*sync.Mutex)
-	mu.Lock()
-	unlock := func() {
-		mu.Unlock()
-	}
-	return unlock
-}
-
-func main() {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalf("look up user home dir: %v", err)
-	}
-
-	app := &cli.App{
-		Name:  "D8s (dates).",
-		Usage: "The client for dinner.",
-		Commands: []*cli.Command{
-			{
-				Name:  "up",
-				Usage: "Connect to docker in docker and set DOCKER_HOST for started process.",
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:    "verbose",
-						Aliases: []string{"v"},
-						Usage:   "Print verbose logs.",
-						EnvVars: []string{"D8S_VERBOSE"},
-					},
-					&cli.StringFlag{
-						Name:    "kubeconfig",
-						Usage:   "Kubeconfig file to use.",
-						EnvVars: []string{"D8S_KUBECONFIG", "KUBECONFIG"},
-						Value:   filepath.Join(homeDir, ".kube", "config"),
-					},
-					&cli.StringFlag{
-						Name:    "context",
-						Usage:   "Context from kubectl config to use.",
-						EnvVars: []string{"D8S_CONTEXT"},
-					},
-					&cli.StringFlag{
-						Name:    "namespace",
-						Usage:   "Namespace to look for dinner server.",
-						EnvVars: []string{"D8S_NAMESPACE"},
-					},
-				},
-				Action: up,
-			},
-			{
-				Name:   "version",
-				Usage:  "Show the version",
-				Action: version,
-			},
-		},
-	}
-
-	err = app.Run(os.Args)
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-}
 
 type NotFoundError string
 
@@ -114,16 +37,7 @@ func (e NotFoundError) Error() string {
 	return string(e)
 }
 
-func version(c *cli.Context) error {
-	_, err := os.Stdout.WriteString(fmt.Sprintf("version: %s\ngit commit: %s", gitRef, gitHash))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func up(c *cli.Context) error {
+func Up(c *cli.Context) error {
 	args := c.Args()
 	if args.First() == "" {
 		return fmt.Errorf("command missing")
@@ -160,6 +74,7 @@ func setupKubernetesClient(kubeconfig, context, namespace string) (*kubernetes.C
 	// TODO: verify kubernetes context is ok
 	// https://github.com/tilt-dev/tilt/blob/fe386b5cc967383972bf73f8cbe6514c604100f8/internal/k8s/env.go#L38
 	// https://github.com/turbine-kreuzberg/dind-nurse/blob/main/Tiltfile#L3
+	// kubectl config current-context
 
 	configLoader := clientcmd.NewDefaultClientConfigLoadingRules()
 

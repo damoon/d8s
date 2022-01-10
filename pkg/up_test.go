@@ -1,4 +1,4 @@
-package main
+package d8s
 
 import "testing"
 
