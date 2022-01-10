@@ -2,9 +2,6 @@ package d8s
 
 import (
 	"fmt"
-	"os"
-
-	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -12,8 +9,8 @@ var (
 	gitRef  = "latest"
 )
 
-func Version(c *cli.Context) error {
-	_, err := os.Stdout.WriteString(fmt.Sprintf("version: %s\ngit commit: %s", gitRef, gitHash))
+func Version() error {
+	_, err := fmt.Printf("version: %s\ngit commit: %s", gitRef, gitHash)
 	if err != nil {
 		return err
 	}

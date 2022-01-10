@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urfave/cli/v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -37,16 +36,14 @@ func (e NotFoundError) Error() string {
 	return string(e)
 }
 
-func Up(c *cli.Context) error {
-	args := c.Args()
-	if args.First() == "" {
-		return fmt.Errorf("command missing")
+func Up(allowContext string, verbose bool, command []string) error {
+	allowed, err := contextAllowed(allowContext)
+	if err != nil {
+		return fmt.Errorf("verify kubernetes context: %v", err)
 	}
-
-	verbose := c.Bool("verbose")
-	kubeconfig := c.String("kubeconfig")
-	context := c.String("context")
-	namespace := c.String("namespace")
+	if !allowed {
+		return fmt.Errorf("kubernetes context not allowed: %v", err)
+	}
 
 	clientset, config, context, namespace, err := setupKubernetesClient(kubeconfig, context, namespace)
 	if err != nil {
@@ -61,7 +58,7 @@ func Up(c *cli.Context) error {
 	localAddr, stopCh := portForward(pod, config, verbose)
 	defer close(stopCh)
 
-	err = executeCommand(c.Args(), localAddr)
+	err = executeCommand(command, localAddr)
 	if err != nil {
 		return fmt.Errorf("command failed with %s", err)
 	}
@@ -268,16 +265,16 @@ func portForwardPod(
 	return fw.ForwardPorts()
 }
 
-func executeCommand(args cli.Args, localAddr string) error {
-	cmd := exec.Command(args.First(), args.Tail()...)
+func executeCommand(command []string, dockerAddr string) error {
+	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "DOCKER_HOST=tcp://"+localAddr)
+	cmd.Env = append(cmd.Env, "DOCKER_HOST=tcp://"+dockerAddr)
 	cmd.Env = append(cmd.Env, "DOCKER_BUILDKIT=1")
 
-	fmt.Printf("Execute command DOCKER_HOST=tcp://%s DOCKER_BUILDKIT=0 %v\n", localAddr, cmd)
+	fmt.Printf("Execute command %s\n", cmd.String())
 
 	err := cmd.Run()
 	if err != nil {

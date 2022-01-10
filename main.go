@@ -1,20 +1,29 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 
 	d8s "github.com/damoon/d8s/pkg"
 	"github.com/urfave/cli/v2"
 )
 
-func main() {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalf("look up user home dir: %v", err)
+var (
+	verbose = &cli.BoolFlag{
+		Name:    "verbose",
+		Aliases: []string{"v"},
+		Usage:   "Print verbose logs.",
+		EnvVars: []string{"D8S_VERBOSE"},
 	}
+	allowContext = &cli.StringFlag{
+		Name:    "allow-context",
+		Usage:   "Allowed Kubernetes context name.",
+		EnvVars: []string{"TILT_ALLOW_CONTEXT"},
+	}
+)
 
+func main() {
 	app := &cli.App{
 		Name:  "D8s (dates).",
 		Usage: "The client for dinner.",
@@ -23,42 +32,33 @@ func main() {
 				Name:  "up",
 				Usage: "Connect to docker in docker and set DOCKER_HOST for started process.",
 				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:    "verbose",
-						Aliases: []string{"v"},
-						Usage:   "Print verbose logs.",
-						EnvVars: []string{"D8S_VERBOSE"},
-					},
-					&cli.StringFlag{
-						Name:    "kubeconfig",
-						Usage:   "Kubeconfig file to use.",
-						EnvVars: []string{"D8S_KUBECONFIG", "KUBECONFIG"},
-						Value:   filepath.Join(homeDir, ".kube", "config"),
-					},
-					&cli.StringFlag{
-						Name:    "context",
-						Usage:   "Context from kubectl config to use.",
-						EnvVars: []string{"D8S_CONTEXT"},
-					},
-					&cli.StringFlag{
-						Name:    "namespace",
-						Usage:   "Namespace to look for dinner server.",
-						EnvVars: []string{"D8S_NAMESPACE"},
-					},
+					verbose,
+					allowContext,
 				},
-				Action: d8s.Up,
+				Action: func(c *cli.Context) error {
+					allowContext := c.String(allowContext.Name)
+					verbose := c.Bool(verbose.Name)
+					args := c.Args()
+					if !args.Present() {
+						return fmt.Errorf("command missing")
+					}
+					command := args.Slice()
+
+					return d8s.Up(allowContext, verbose, command)
+				},
 			},
 			{
-				Name:   "version",
-				Usage:  "Show the version",
-				Action: d8s.Version,
+				Name:  "version",
+				Usage: "Show the version",
+				Action: func(c *cli.Context) error {
+					return d8s.Version()
+				},
 			},
 		},
 	}
 
-	err = app.Run(os.Args)
+	err := app.Run(os.Args)
 	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
