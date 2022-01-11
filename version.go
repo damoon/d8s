@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -10,7 +12,7 @@ var (
 	date    string
 )
 
-func Version() error {
+func Version(c *cli.Context) error {
 	_, err := fmt.Printf("version: %s\ncommit: %s\nbuilt at: %s\n", version, commit, date)
 	if err != nil {
 		return err

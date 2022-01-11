@@ -13,7 +13,7 @@ var (
 	manifest string
 )
 
-func contextAllowed(envVar string) (bool, error) {
+func ContextAllowed(envVar string) (bool, error) {
 	contextName, err := kubectlContext()
 	if err != nil {
 		return false, err
