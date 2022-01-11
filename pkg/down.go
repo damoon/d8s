@@ -11,7 +11,7 @@ import (
 
 func Down(ctx context.Context, allowContext string) error {
 	// verify kubernetes context in use
-	allowed, err := contextAllowed(allowContext)
+	allowed, err := ContextAllowed(allowContext)
 	if err != nil {
 		return fmt.Errorf("verify kubernetes context: %v", err)
 	}
