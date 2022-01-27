@@ -50,7 +50,14 @@ spec:
           args:
             - |
               while true; do
-                dockerd-entrypoint.sh dockerd --host=tcp://0.0.0.0:12375 --tls=false --mtu=1300 &> /dev/null
+                dockerd-entrypoint.sh dockerd \
+                  --host=tcp://0.0.0.0:12375 \
+                  --tls=false \
+                  --mtu=1300 \
+                  --insecure-registry=10.0.0.0/8 \
+                  --insecure-registry=172.16.0.0/12 \
+                  --insecure-registry=192.168.0.0/16 \
+                  &> /dev/null
                 date;
                 echo restarted to avoid OOM during builds;
               done
