@@ -13,7 +13,7 @@ var (
 	allowContext = &cli.StringFlag{
 		Name:    "allow-context",
 		Usage:   "Allowed Kubernetes context name.",
-		EnvVars: []string{"TILT_ALLOW_CONTEXT"},
+		EnvVars: []string{"TILT_ALLOW_CONTEXT", "D8S_ALLOW_CONTEXT"},
 	}
 	app = &cli.App{
 		Name:        "D8s (dates).",
