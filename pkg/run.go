@@ -13,7 +13,7 @@ import (
 
 func Run(ctx context.Context, allowContext string, command []string) error {
 	// verify kubernetes context in use
-	allowed, err := ContextAllowed(allowContext)
+	allowed, err := ContextAllowed(ctx, allowContext)
 	if err != nil {
 		return fmt.Errorf("verify kubernetes context: %v", err)
 	}
@@ -22,7 +22,7 @@ func Run(ctx context.Context, allowContext string, command []string) error {
 	}
 
 	// port forward
-	err = awaitDind()
+	err = awaitDind(ctx)
 	if err != nil {
 		return fmt.Errorf("wait for dind to start: %v", err)
 	}
@@ -40,7 +40,7 @@ func Run(ctx context.Context, allowContext string, command []string) error {
 	}
 
 	// execute command
-	err = executeCommand(command, fmt.Sprintf("tcp://127.0.0.1:%d", localPort))
+	err = executeCommand(ctx, command, fmt.Sprintf("tcp://127.0.0.1:%d", localPort))
 	if err != nil {
 		return fmt.Errorf("command failed with %s", err)
 	}
@@ -48,8 +48,9 @@ func Run(ctx context.Context, allowContext string, command []string) error {
 	return nil
 }
 
-func awaitDind() error {
-	cmd := exec.Command(
+func awaitDind(ctx context.Context) error {
+	cmd := exec.CommandContext(
+		ctx,
 		"kubectl",
 		"wait",
 		"--for=condition=available",
@@ -104,7 +105,8 @@ func portForwardForever(ctx context.Context, localPort, dindPort int) {
 }
 
 func portForward(ctx context.Context, localPort, dinnerPort int) error {
-	cmd := exec.Command(
+	cmd := exec.CommandContext(
+		ctx,
 		"kubectl",
 		"port-forward",
 		"deployment/dind",
@@ -153,8 +155,11 @@ func portOpen(ctx context.Context, host string, port string) bool {
 	return true
 }
 
-func executeCommand(command []string, dockerAddr string) error {
-	cmd := exec.Command(command[0], command[1:]...)
+func executeCommand(ctx context.Context, command []string, dockerAddr string) error {
+	cmd := exec.CommandContext(
+		ctx,
+		command[0],
+		command[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

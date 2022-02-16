@@ -55,9 +55,10 @@ func main() {
 }
 
 func verifyContext(c *cli.Context) error {
+	ctx := c.Context
 	allowContext := c.String(allowContext.Name)
 
-	allowed, err := d8s.ContextAllowed(allowContext)
+	allowed, err := d8s.ContextAllowed(ctx, allowContext)
 	if err != nil {
 		return fmt.Errorf("verify kubernetes context: %v", err)
 	}

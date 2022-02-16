@@ -1,6 +1,7 @@
 package d8s
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
@@ -13,8 +14,8 @@ var (
 	manifest string
 )
 
-func ContextAllowed(envVar string) (bool, error) {
-	contextName, err := kubectlContext()
+func ContextAllowed(ctx context.Context, envVar string) (bool, error) {
+	contextName, err := kubectlContext(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -30,8 +31,9 @@ func ContextAllowed(envVar string) (bool, error) {
 	return false, fmt.Errorf("context %s does not appear to be a development environment", contextName)
 }
 
-func kubectlContext() (string, error) {
-	cmd := exec.Command(
+func kubectlContext(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(
+		ctx,
 		"kubectl",
 		"config",
 		"current-context",

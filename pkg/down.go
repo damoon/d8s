@@ -11,7 +11,7 @@ import (
 
 func Down(ctx context.Context, allowContext string) error {
 	// verify kubernetes context in use
-	allowed, err := ContextAllowed(allowContext)
+	allowed, err := ContextAllowed(ctx, allowContext)
 	if err != nil {
 		return fmt.Errorf("verify kubernetes context: %v", err)
 	}
@@ -19,7 +19,7 @@ func Down(ctx context.Context, allowContext string) error {
 		return fmt.Errorf("kubernetes context not allowed")
 	}
 
-	err = deleteDind()
+	err = deleteDind(ctx)
 	if err != nil {
 		return fmt.Errorf("delete dind: %v", err)
 	}
@@ -27,8 +27,9 @@ func Down(ctx context.Context, allowContext string) error {
 	return nil
 }
 
-func deleteDind() error {
-	cmd := exec.Command(
+func deleteDind(ctx context.Context) error {
+	cmd := exec.CommandContext(
+		ctx,
 		"kubectl",
 		"delete",
 		"-f-",
