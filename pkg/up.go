@@ -39,12 +39,11 @@ func Up(ctx context.Context, allowContext string, command []string) error {
 		return fmt.Errorf("select free local port: %v", err)
 	}
 
-	go portForwardForever(ctx, localPort, dindPort)
-
-	err = awaitPortOpen(ctx, localPort)
+	cancel, err := startPortForward(ctx, localPort, dindPort)
 	if err != nil {
-		return fmt.Errorf("wait for port forward to start: %v", err)
+		return fmt.Errorf("starting port-forward: %v", err)
 	}
+	defer cancel()
 
 	// execute command
 	err = executeCommand(ctx, command, fmt.Sprintf("tcp://127.0.0.1:%d", localPort))
