@@ -95,7 +95,7 @@ func portForwardForever(ctx context.Context, localPort, dindPort int) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(10 * time.Millisecond):
 			err := portForward(ctx, localPort, dindPort)
 			if err != nil {
 				log.Printf("port forward failed: %v", err)
@@ -130,7 +130,7 @@ func awaitPortOpen(ctx context.Context, localPort int) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("port did not open: %v", ctx.Err())
-		case <-time.After(1 * time.Second):
+		case <-time.After(10 * time.Millisecond):
 			timeout, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
