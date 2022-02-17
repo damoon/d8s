@@ -50,5 +50,11 @@
           "depNameTemplate": "tilt-dev/tilt",
           "datasourceTemplate": "github-tags"
       }
+  ],
+  "packageRules": [
+      {
+          "matchPackageNames": ["golang/go"],
+          "extractVersion": "^go(?<version>.*)$"
+      }
   ]
 }
