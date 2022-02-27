@@ -20,7 +20,7 @@ jobs:
         with:
           go-version: '1.17.0'
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@79d4afbba1b4eff8b9a98e3d2e58c4dbaf094e2b # renovate: tag=v2
+        uses: goreleaser/goreleaser-action@c127c9be6187cfff52edfac7c51b1834a47995d7 # tag=v2
         with:
           distribution: goreleaser
           version: latest
