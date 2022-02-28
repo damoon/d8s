@@ -21,7 +21,7 @@ jobs:
       - name: Checkout git repo
         uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # renovate: tag=v2
       - name: Setup golang
-        uses: actions/setup-go@bfdd3570ce990073878bf10f6b2d79082de49492 # renovate: tag=v2
+        uses: actions/setup-go@f6164bd8c8acb4a71fb2791a8b6c4024ff038dab # tag=v3
         with:
           go-version: '1.17.7'
       - name: Print go version
@@ -43,7 +43,7 @@ jobs:
             tilt
           tilt: 'v0.25.2'
       - name: Setup golang
-        uses: actions/setup-go@bfdd3570ce990073878bf10f6b2d79082de49492 # renovate: tag=v2
+        uses: actions/setup-go@f6164bd8c8acb4a71fb2791a8b6c4024ff038dab # tag=v3
         with:
           go-version: '1.17.7'
       - name: Verify tilt ci
