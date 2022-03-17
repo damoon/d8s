@@ -43,7 +43,7 @@ spec:
             - name: data
               mountPath: /var/lib/docker
         - name: dind
-          image: docker:20.10.13-dind@sha256:41bd636ca74163b65972d707fc43f6b955d9cc87d7fffaef76475b8a2eb9c323
+          image: docker:20.10.13-dind@sha256:ca2744235df40f184843b2cb9f0245a6b64ae65065aad30285e80d5a266fe0c2
           command:
             - sh
             - -c
