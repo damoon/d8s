@@ -2,7 +2,7 @@ module github.com/damoon/d8s
 
 go 1.17
 
-require github.com/urfave/cli/v2 v2.5.0
+require github.com/urfave/cli/v2 v2.5.1
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
