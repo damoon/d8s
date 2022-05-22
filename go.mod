@@ -2,7 +2,7 @@ module github.com/damoon/d8s
 
 go 1.17
 
-require github.com/urfave/cli/v2 v2.7.1
+require github.com/urfave/cli/v2 v2.8.0
 
 require (
 	github.com/antzucaro/matchr v0.0.0-20210222213004-b04723ef80f0 // indirect
