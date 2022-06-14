@@ -35,7 +35,7 @@ jobs:
       - name: Checkout git repo
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
       - name: Create k8s Kind Cluster
-        uses: helm/kind-action@94729529f85113b88f4f819c17ce61382e6d8478 # renovate: tag=v1.2.0
+        uses: helm/kind-action@d08cf6ff1575077dee99962540d77ce91c62387d # tag=v1.3.0
       - name: Install tilt cli
         uses: yokawasa/action-setup-kube-tools@ce0b2d7df14d57e25dc8959d693692c9aff5d3c6 # tag=v0.8.1
         with:
