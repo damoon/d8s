@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout git repo
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # tag=v3
       - name: Lint go code with golangci-lint
         uses: golangci/golangci-lint-action@537aa1903e5d359d0b27dbc19ddd22c5087f3fbc # tag=v3
         with:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout git repo
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # tag=v3
       - name: Setup golang
         uses: actions/setup-go@268d8c0ca0432bb2cf416faae41297df9d262d7f # tag=v3
         with:
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout git repo
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # tag=v3
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@9e8295d178de23cbfbd8fa16cf844eec1d773a07 # tag=v1.4.0
       - name: Install tilt cli
