@@ -28,7 +28,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: nurse
-          image: ghcr.io/turbine-kreuzberg/dind-nurse:latest@sha256:5819f3ad4852217fb1f1d14e65aebd4f842a9e9527c296272ab4b36a16003fb3
+          image: ghcr.io/turbine-kreuzberg/dind-nurse:latest@sha256:23367efcea4c011289ae9eb13a7a4dc3e364979366e761db2a64758ce47464b4
           imagePullPolicy: Always
           args:
             - server
