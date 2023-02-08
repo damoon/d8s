@@ -10,7 +10,7 @@ jobs:
       - name: Checkout git repo
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
       - name: Lint go code with golangci-lint
-        uses: golangci/golangci-lint-action@07db5389c99593f11ad7b44463c2d4233066a9b1 # tag=v3
+        uses: golangci/golangci-lint-action@08e2f20817b15149a52b5b3ebe7de50aff2ba8c5 # v3
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
           version: v1.51.1
