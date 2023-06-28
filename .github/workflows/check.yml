@@ -41,7 +41,7 @@ jobs:
         with:
           setup-tools: |
             tilt
-          tilt: 'v0.33.0'
+          tilt: 'v0.33.1'
       - name: Setup golang
         uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4
         with:
