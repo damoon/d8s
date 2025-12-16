@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup golang
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4
+        uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4
         with:
           go-version: '1.17.0'
       - name: Run GoReleaser
